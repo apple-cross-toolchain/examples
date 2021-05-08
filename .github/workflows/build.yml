@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  build_redditos_app:
+  build_examples:
     runs-on: ubuntu-latest
     steps:
       - run: |
