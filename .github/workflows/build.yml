@@ -1,0 +1,28 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_redditos_app:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          git clone https://github.com/apple-cross-toolchain/rules_applecross.git
+          cd rules_applecross
+          sudo tools/install-mandatory-tools.sh
+          cd ..
+          rm -rf rules_applecross
+      - uses: actions/checkout@v2
+      - run: |
+          bazel fetch @rules_applecross//tests/data:dummy_lib
+          DEVELOPER_DIR="$(bazel info output_base)/external/apple_cross_toolchain/Xcode.app/Contents/Developer"
+          sudo xcode-select -s "$DEVELOPER_DIR"
+      - run: bazel build @RedditOS//:Curiosity
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Curiosity
+          path: bazel-bin/external/RedditOS/Curiosity.zip

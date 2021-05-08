@@ -1,0 +1,508 @@
+diff --git c/Packages/Backend/Sources/Backend/Network/OauthClient.swift i/Packages/Backend/Sources/Backend/Network/OauthClient.swift
+index b1994ad..1d1b86c 100644
+--- c/Packages/Backend/Sources/Backend/Network/OauthClient.swift
++++ i/Packages/Backend/Sources/Backend/Network/OauthClient.swift
+@@ -43,13 +43,13 @@ public class OauthClient: ObservableObject {
+     private var refreshTimer: Timer?
+     
+     init() {
+-        if let path = Bundle.module.path(forResource: "secrets", ofType: "plist"),
+-           let secrets = NSDictionary(contentsOfFile: path) as? [String: AnyObject] {
+-            self.secrets = secrets
+-        } else {
++        // if let path = Bundle.module.path(forResource: "secrets", ofType: "plist"),
++        //    let secrets = NSDictionary(contentsOfFile: path) as? [String: AnyObject] {
++        //     self.secrets = secrets
++        // } else {
+             self.secrets = nil
+             print("Error: No secrets file found, you won't be able to login on Reddit")
+-        }
++        // }
+         
+         let keychain = Keychain(service: keychainService)
+         if let token = keychain[keychainAuthTokenKey],
+diff --git c/RedditOs/Features/Post/PostDetail.swift i/RedditOs/Features/Post/PostDetail.swift
+deleted file mode 100644
+index eba80e7..0000000
+--- c/RedditOs/Features/Post/PostDetail.swift
++++ /dev/null
+@@ -1,43 +0,0 @@
+-//
+-//  PostDetailView.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 09/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-import AVKit
+-
+-struct PostDetailView: View {
+-    @ObservedObject var viewModel: PostViewModel
+-    @State private var redrawLink = false
+-        
+-    var body: some View {
+-        List {
+-            VStack(alignment: .leading, spacing: 8) {
+-                HStack {
+-                    PostVoteView(viewModel: viewModel)
+-                    VStack(alignment: .leading) {
+-                        PostInfoView(post: viewModel.post)
+-                        PostDetailHeader(listing: viewModel.post)
+-                    }
+-                }
+-                PostDetailContent(listing: viewModel.post, redrawLink: $redrawLink)
+-                PostDetailActions(listing: viewModel.post)
+-            }.padding(.bottom, 16)
+-            PostDetailCommentsSection(comments: viewModel.comments)
+-        }
+-        .onAppear(perform: viewModel.fechComments)
+-        .onAppear(perform: viewModel.postVisit)
+-        .frame(minWidth: 500,
+-               maxWidth: .infinity,
+-               maxHeight: .infinity)
+-    }
+-}
+-
+-struct PostDetail_Previews: PreviewProvider {
+-    static var previews: some View {
+-        PostDetailView(viewModel: PostViewModel(post: static_listing))
+-    }
+-}
+diff --git c/RedditOs/Features/Post/PostDetailActions.swift i/RedditOs/Features/Post/PostDetailActions.swift
+deleted file mode 100644
+index 8f9a614..0000000
+--- c/RedditOs/Features/Post/PostDetailActions.swift
++++ /dev/null
+@@ -1,52 +0,0 @@
+-//
+-//  PostDetailActions.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 10/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-
+-struct PostDetailActionsView: View {
+-    @ObservedObject var viewModel: PostViewModel
+-    
+-    var body: some View {
+-        HStack(spacing: 16) {
+-            HStack(spacing: 6) {
+-                Image(systemName: "bubble.middle.bottom.fill")
+-                    .imageScale(.small)
+-                Text("\(viewModel.post.numComments) comments")
+-            }
+-            
+-            HStack(spacing: 6) {
+-                Image(systemName: "square.and.arrow.up")
+-                    .imageScale(.small)
+-                Text("Share")
+-            }
+-            
+-            HStack(spacing: 6) {
+-                Button(action: {
+-                    viewModel.toggleSave()
+-                }) {
+-                    Image(systemName: viewModel.post.saved ? "bookmark.fill": "bookmark")
+-                        .imageScale(.small)
+-                    Text("Save")
+-                }.buttonStyle(BorderlessButtonStyle())
+-            }
+-            
+-            HStack(spacing: 6) {
+-                Image(systemName: "flag")
+-                    .imageScale(.small)
+-                Text("Report")
+-            }
+-            
+-        }
+-    }
+-}
+-
+-struct PostDetailActions_Previews: PreviewProvider {
+-    static var previews: some View {
+-        PostDetailActionsView(viewModel: PostViewModel(post: static_listing))
+-    }
+-}
+diff --git c/RedditOs/Features/Post/PostDetailContent.swift i/RedditOs/Features/Post/PostDetailContent.swift
+index 6fdff8f..50b76bf 100644
+--- c/RedditOs/Features/Post/PostDetailContent.swift
++++ i/RedditOs/Features/Post/PostDetailContent.swift
+@@ -24,9 +24,9 @@ struct PostDetailContent: View {
+         if let video = listing.secureMedia?.video {
+             HStack {
+                 Spacer()
+-                VideoPlayer(player: AVPlayer(url: video.url))
+-                    .frame(width: min(500, CGFloat(video.width)),
+-                           height: min(500, CGFloat(video.height)))
++                // VideoPlayer(player: AVPlayer(url: video.url))
++                //     .frame(width: min(500, CGFloat(video.width)),
++                //            height: min(500, CGFloat(video.height)))
+                 Spacer()
+             }
+         } else if let url = listing.url, let realURL = URL(string: url) {
+diff --git c/RedditOs/Features/Post/PostDetailViewModel.swift i/RedditOs/Features/Post/PostDetailViewModel.swift
+deleted file mode 100644
+index 4cb9669..0000000
+--- c/RedditOs/Features/Post/PostDetailViewModel.swift
++++ /dev/null
+@@ -1,31 +0,0 @@
+-//
+-//  PostDetailViewModel.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 10/07/2020.
+-//
+-
+-import Foundation
+-import SwiftUI
+-import Combine
+-import Backend
+-
+-class PostViewModel: ObservableObject {
+-    let post: SubredditPost
+-    @Published var comments: [Comment]?
+-    
+-    private var commentsCancellable: AnyCancellable?
+-    
+-    init(post: SubredditPost) {
+-        self.post = post
+-    }
+-    
+-    func fechComments() {
+-        commentsCancellable = Comment.fetch(subreddit: post.subreddit, id: post.id)
+-            .receive(on: DispatchQueue.main)
+-            .map{ $0.last?.comments }
+-            .sink{ [weak self] comments in
+-                self?.comments = comments
+-            }
+-    }
+-}
+diff --git c/RedditOs/Features/Profile/SavedPostListView.swift i/RedditOs/Features/Profile/SavedPostListView.swift
+deleted file mode 100644
+index 21b32c0..0000000
+--- c/RedditOs/Features/Profile/SavedPostListView.swift
++++ /dev/null
+@@ -1,23 +0,0 @@
+-//
+-//  SavedPostsListView.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 24/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-
+-struct SavedPostsListView: View {
+-    @EnvironmentObject private var currentUser: CurrentUserStore
+-    
+-    var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+-    }
+-}
+-
+-struct SavedPostListView_Previews: PreviewProvider {
+-    static var previews: some View {
+-        SavedPostsListView()
+-    }
+-}
+diff --git c/RedditOs/Features/Search/SearchSheet.swift i/RedditOs/Features/Search/SearchSheet.swift
+deleted file mode 100644
+index 3fedfbe..0000000
+--- c/RedditOs/Features/Search/SearchSheet.swift
++++ /dev/null
+@@ -1,32 +0,0 @@
+-//
+-//  SearchSubredditsPopover.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 09/07/2020.
+-//
+-
+-import SwiftUI
+-
+-struct SearchSubredditsPopover: View {
+-    @State private var search = ""
+-    var body: some View {
+-        List {
+-            TextField("Search", text: $search)
+-                .textFieldStyle(RoundedBorderTextFieldStyle())
+-        }
+-        .navigationTitle("Search")
+-        .toolbar {
+-            ToolbarItem(placement: .navigation) {
+-                Button(action: {}) {
+-                    Image(systemName: "xmark.circle")
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-struct SearchSheet_Previews: PreviewProvider {
+-    static var previews: some View {
+-        SearchSubredditsPopover()
+-    }
+-}
+diff --git c/RedditOs/Features/Search/SearchSubredditsPopover.swift i/RedditOs/Features/Search/SearchSubredditsPopover.swift
+deleted file mode 100644
+index 87ac860..0000000
+--- c/RedditOs/Features/Search/SearchSubredditsPopover.swift
++++ /dev/null
+@@ -1,45 +0,0 @@
+-//
+-//  SearchSubredditsPopover.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 09/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-
+-struct PopoverSearchSubredditView: View {
+-    @EnvironmentObject private var userData: LocalDataStore
+-    @StateObject private var viewModel = SearchSubredditsViewModel()
+-    
+-    var body: some View {
+-        List {
+-            TextField("Search", text: $viewModel.searchText)
+-                .textFieldStyle(RoundedBorderTextFieldStyle())
+-                .padding(.vertical, 8)
+-            if viewModel.isLoading {
+-                LoadingRow(text: nil)
+-            } else if let results = viewModel.results {
+-                ForEach(results) { result in
+-                    PopoverSearchSubredditRow(subreddit: result).onTapGesture {
+-                        userData.add(favorite: result)
+-                    }
+-                }
+-            }
+-        }
+-        .navigationTitle("Search")
+-        .toolbar {
+-            ToolbarItem(placement: .navigation) {
+-                Button(action: {}) {
+-                    Image(systemName: "xmark.circle")
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-struct SearchSheet_Previews: PreviewProvider {
+-    static var previews: some View {
+-        PopoverSearchSubredditView()
+-    }
+-}
+diff --git c/RedditOs/Features/Sidebar/Sidebar.swift i/RedditOs/Features/Sidebar/Sidebar.swift
+deleted file mode 100644
+index fa20f30..0000000
+--- c/RedditOs/Features/Sidebar/Sidebar.swift
++++ /dev/null
+@@ -1,147 +0,0 @@
+-//
+-//  Sidebar.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 08/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-import SDWebImageSwiftUI
+-
+-struct SidebarView: View {
+-    @EnvironmentObject private var uiState: UIState
+-    @EnvironmentObject private var localData: LocalDataStore
+-    @EnvironmentObject private var currentUser: CurrentUserStore
+-    
+-    @State private var isSearchPopoverPresented = false
+-    @State private var isHovered = false
+-    @State private var isInEditMode = false
+-    
+-    var body: some View {
+-        List(selection: $uiState.sidebarSelection) {
+-            Section {
+-                ForEach(UIState.DefaultChannels.allCases, id: \.self) { item in
+-                    NavigationLink(destination: SubredditPostsListView(name: item.rawValue)) {
+-                        Label(LocalizedStringKey(item.rawValue.capitalized), systemImage: item.icon())
+-                    }.tag(item.rawValue)
+-                }.animation(nil)
+-                NavigationLink(destination: SubredditPostsListView(name: uiState.searchedSubreddit),
+-                               isActive: $uiState.displaySearch) {
+-                    EmptyView()
+-                }.hidden()
+-            }
+-             
+-            Section(header: Text("Account")) {
+-                NavigationLink(destination: ProfileView()) {
+-                    if let user = currentUser.user {
+-                        Label(user.name, systemImage: "person.crop.circle")
+-                    } else {
+-                        Label("Profile", systemImage: "person.crop.circle")
+-                    }
+-                }.tag("profile")
+-                Label("Inbox", systemImage: "envelope")
+-                NavigationLink(destination: SubmittedPostsListView()) {
+-                    Label("Posts", systemImage: "square.and.pencil")
+-                }.tag("Posts")
+-                Label("Comments", systemImage: "text.bubble")
+-                NavigationLink(destination: SavedPostsListView()) {
+-                    Label("Saved", systemImage: "archivebox")
+-                }.tag("Saved")
+-            }.listItemTint(.redditBlue)
+-            
+-            Section(header: subredditsHeader) {
+-                ForEach(localData.favorites) { reddit in
+-                    HStack {
+-                        SidebarSubredditRow(name: reddit.name,
+-                                            iconURL: reddit.iconImg)
+-                            .tag("local\(reddit.name)")
+-                        if isInEditMode {
+-                            Spacer()
+-                            Button {
+-                                localData.remove(favorite: reddit)
+-                            } label: {
+-                                Image(systemName: "minus.circle.fill")
+-                                    .imageScale(.large)
+-                                    .foregroundColor(.red)
+-                            }
+-                            .buttonStyle(BorderlessButtonStyle())
+-                        }
+-                    }
+-                }.animation(nil)
+-            }
+-            .listItemTint(.redditGold)
+-            .animation(.easeInOut)
+-                        
+-            if let subs = currentUser.subscriptions, currentUser.user != nil {
+-                Section(header: Text("Subscriptions")) {
+-                    ForEach(subs) { reddit in
+-                        HStack {
+-                            SidebarSubredditRow(name: reddit.displayName,
+-                                                iconURL: reddit.iconImg)
+-                                .tag(reddit.displayName)
+-                            Spacer()
+-                            if isHovered {
+-                                let isfavorite = localData.favorites.first(where: { $0.name == reddit.displayName}) != nil
+-                                Button {
+-                                    if isfavorite {
+-                                        localData.remove(favoriteNamed: reddit.displayName)
+-                                    } else {
+-                                        localData.add(favorite: SubredditSmall.makeSubredditSmall(with: reddit))
+-                                    }
+-                                } label: {
+-                                    Image(systemName: isfavorite ? "star.fill" : "star")
+-                                        .imageScale(.large)
+-                                        .foregroundColor(.yellow)
+-                                        .opacity(/*@START_MENU_TOKEN@*/0.8/*@END_MENU_TOKEN@*/)
+-                                }
+-                                .buttonStyle(BorderlessButtonStyle())
+-                            }
+-                        }
+-                    }.animation(nil)
+-                }.listItemTint(.redditBlue)
+-            }
+-        }
+-        .animation(nil)
+-        .listStyle(SidebarListStyle())
+-        .frame(minWidth: 200, idealWidth: 200, maxWidth: 200, maxHeight: .infinity)
+-        .onHover { hovered in
+-            isHovered = hovered
+-        }
+-    }
+-    
+-    private var subredditsHeader: some View {
+-        HStack(spacing: 8) {
+-            Text("Favorites")
+-            if isHovered {
+-                Button {
+-                    isSearchPopoverPresented = true
+-                } label: {
+-                    Image(systemName: "plus.circle")
+-                        .imageScale(.large)
+-                        .foregroundColor(.blue)
+-                }
+-                .buttonStyle(BorderlessButtonStyle())
+-                .popover(isPresented: $isSearchPopoverPresented) {
+-                    PopoverSearchSubredditView()
+-                }
+-                
+-                Button {
+-                    isInEditMode.toggle()
+-                } label: {
+-                    Image(systemName: isInEditMode ? "trash.circle.fill" : "trash.circle")
+-                        .imageScale(.large)
+-                        .foregroundColor(.blue)
+-                }
+-                .buttonStyle(BorderlessButtonStyle())
+-            }
+-
+-        }
+-    }
+-}
+-
+-struct Sidebar_Previews: PreviewProvider {
+-    static var previews: some View {
+-        SidebarView()
+-    }
+-}
+diff --git c/RedditOs/Features/Subreddit/SubredditPostThubnailView.swift i/RedditOs/Features/Subreddit/SubredditPostThubnailView.swift
+deleted file mode 100644
+index 4bd9186..0000000
+--- c/RedditOs/Features/Subreddit/SubredditPostThubnailView.swift
++++ /dev/null
+@@ -1,47 +0,0 @@
+-//
+-//  SubredditPostThubnailView.swift
+-//  RedditOs
+-//
+-//  Created by Thomas Ricouard on 21/07/2020.
+-//
+-
+-import SwiftUI
+-import Backend
+-import SDWebImageSwiftUI
+-
+-struct SubredditPostThumbnailView: View {
+-    let post: SubredditPost
+-    
+-    @ViewBuilder
+-    var body: some View {
+-        if let url = post.thumbnailURL {
+-            WebImage(url: url)
+-                .frame(width: 80, height: 60)
+-                .aspectRatio(contentMode: .fit)
+-                .cornerRadius(8)
+-        } else {
+-            ZStack(alignment: .center) {
+-                RoundedRectangle(cornerRadius: 8)
+-                    .frame(width: 80, height: 60)
+-                    .foregroundColor(Color.gray)
+-                if post.url != nil {
+-                    if post.selftext == nil || post.selftext?.isEmpty == true {
+-                        Image(systemName: "link")
+-                            .imageScale(.large)
+-                            .foregroundColor(.blue)
+-                    } else {
+-                        Image(systemName: "bubble.left.and.bubble.right.fill")
+-                            .imageScale(.large)
+-                            .foregroundColor(.white)
+-                    }
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-struct SubredditPostThubnailView_Previews: PreviewProvider {
+-    static var previews: some View {
+-        SubredditPostThumbnailView(post: static_listing)
+-    }
+-}
