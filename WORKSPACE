@@ -76,3 +76,11 @@ http_archive(
     strip_prefix = "Kingfisher-5.15.8",
     url = "https://github.com/onevcat/Kingfisher/archive/refs/tags/5.15.8.zip",
 )
+
+http_archive(
+    name = "MBProgressHUD",
+    build_file = "//third_party:MBProgressHUD.BUILD",
+    sha256 = "6533ca3bd481091979d3ec2db140c252d4bcc470276b16c806910f04276ae798",
+    strip_prefix = "MBProgressHUD-c843e4c86d320a11552898646effa8000042ab16",
+    url = "https://github.com/jdg/MBProgressHUD/archive/c843e4c86d320a11552898646effa8000042ab16.zip",
+)
