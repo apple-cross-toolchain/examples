@@ -11,24 +11,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install mandatory tools
-        run: |
-          git clone --depth=1 https://github.com/apple-cross-toolchain/rules_applecross.git /tmp/rules_applecross
-          sudo /tmp/rules_applecross/tools/install-mandatory-tools.sh
-          rm -rf /tmp/rules_applecross
-      - name: Create .netrc
+      - name: Prepare build environment
         run: |
           cat > ~/.netrc <<EOF
           machine api.github.com
-          login ${{ secrets.APPLE_SDKS_GH_PAT_USER }}
-          password ${{ secrets.APPLE_SDKS_GH_PAT_PASSWORD }}
+          login ${{ secrets.SDKS_USER }}
+          password ${{ secrets.SDKS_PASSWORD }}
           EOF
           chmod 600 ~/.netrc
-      - name: Fetch toolchain and set developer dir
-        run: |
-          bazel fetch @apple_cross_toolchain//:all
-          DEVELOPER_DIR="$(bazel info output_base)/external/rules_applecross++apple_cross_toolchain+apple_cross_toolchain/Xcode.app/Contents/Developer"
-          sudo xcode-select -s "$DEVELOPER_DIR"
+          sed -i 's|SDKS_URL|${{ secrets.SDKS_URL }}|g' MODULE.bazel
       - run: bazel build @MBProgressHUD//:MBProgressHUDFramework
       - uses: actions/upload-artifact@v4
         with:
