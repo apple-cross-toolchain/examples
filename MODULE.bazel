@@ -1,0 +1,65 @@
+module(name = "apple_cross_toolchain_examples", version = "0.0.1")
+
+bazel_dep(name = "rules_applecross", version = "0.0.3")
+git_override(
+    module_name = "rules_applecross",
+    remote = "https://github.com/apple-cross-toolchain/rules_applecross.git",
+    commit = "80473d5fc05c11d2396095e0faa9ab9a93b820f1",
+)
+bazel_dep(name = "rules_apple", version = "4.3.3", repo_name = "build_bazel_rules_apple")
+git_override(
+    module_name = "rules_apple",
+    remote = "https://github.com/bazelbuild/rules_apple.git",
+    commit = "d930c4c6eaeed91c8275604a428407d123a85216",
+    patches = ["//patches:rules_apple_no_exec_platform_constraint.patch"],
+    patch_strip = 1,
+)
+bazel_dep(name = "apple_support", version = "2.3.0", repo_name = "build_bazel_apple_support")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+
+apple_cross_toolchain = use_extension(
+    "@rules_applecross//toolchain:extensions.bzl",
+    "apple_cross_toolchain",
+)
+apple_cross_toolchain.configure(
+    name = "apple_cross_toolchain",
+    apple_sdk_urls = ["https://api.github.com/repos/apple-cross-toolchain/apple-sdks/releases/assets/366021069"],
+    apple_sdk_sha256 = "64a4c28c1ef620158954b431c510fa0e6b36991a32cc74c2593da8c00e897414",
+    apple_sdk_archive_type = "tar.xz",
+)
+use_repo(apple_cross_toolchain, "apple_cross_toolchain")
+
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-darwin_x86_64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-darwin_arm64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-darwin_arm64e")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-ios_arm64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-ios_arm64e")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-ios_x86_64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-tvos_arm64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-tvos_x86_64")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-watchos_arm64_32")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-watchos_armv7k")
+register_toolchains("@apple_cross_toolchain//:cc-toolchain-watchos_x86_64")
+
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-darwin_x86_64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-darwin_arm64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-darwin_arm64e")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-ios_arm64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-ios_arm64e")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-ios_x86_64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-tvos_arm64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-tvos_x86_64")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-watchos_arm64_32")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-watchos_armv7k")
+register_toolchains("@apple_cross_toolchain//:swift-toolchain-watchos_x86_64")
+
+# External dependencies
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "MBProgressHUD",
+    build_file = "//third_party:MBProgressHUD.BUILD",
+    sha256 = "6533ca3bd481091979d3ec2db140c252d4bcc470276b16c806910f04276ae798",
+    strip_prefix = "MBProgressHUD-c843e4c86d320a11552898646effa8000042ab16",
+    url = "https://github.com/jdg/MBProgressHUD/archive/c843e4c86d320a11552898646effa8000042ab16.zip",
+)
