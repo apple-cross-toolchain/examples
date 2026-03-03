@@ -27,7 +27,7 @@ jobs:
       - name: Fetch toolchain and set developer dir
         run: |
           bazel fetch @apple_cross_toolchain//:all
-          DEVELOPER_DIR="$(bazel info output_base)/external/+apple_cross_toolchain+apple_cross_toolchain/Xcode.app/Contents/Developer"
+          DEVELOPER_DIR="$(bazel info output_base)/external/rules_applecross++apple_cross_toolchain+apple_cross_toolchain/Xcode.app/Contents/Developer"
           sudo xcode-select -s "$DEVELOPER_DIR"
       - run: bazel build @MBProgressHUD//:MBProgressHUDFramework
       - uses: actions/upload-artifact@v4
