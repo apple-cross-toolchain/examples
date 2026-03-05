@@ -1100,6 +1100,24 @@ index b8571c0c94..15d0e4b854 100644
      ],
      hdrs = glob([
          "lottiecpp/PublicHeaders/**/*.h",
+diff --git a/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h b/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
+--- a/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
++++ b/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
+@@ -130,6 +130,14 @@ struct Vector3D {
+     float x = 0.0;
+     float y = 0.0;
+     float z = 0.0;
++
++    bool operator==(Vector3D const &rhs) const {
++        return x == rhs.x && y == rhs.y && z == rhs.z;
++    }
++
++    bool operator!=(Vector3D const &rhs) const {
++        return !(*this == rhs);
++    }
+ };
+ 
+ Vector3D interpolate(
 diff --git a/submodules/MimeTypes/BUILD b/submodules/MimeTypes/BUILD
 index e4c7fb3d6a..7f6463131f 100644
 --- a/submodules/MimeTypes/BUILD
