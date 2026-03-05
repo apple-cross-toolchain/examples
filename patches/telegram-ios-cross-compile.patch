@@ -69,7 +69,7 @@ index 0000000000..f7ee06693c
 @@ -0,0 +1 @@
 +9.0.0
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 99b68b09ef..604ec19acb 100644
+index 99b68b09ef..bfeb37ad62 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -1,8 +1,9 @@
@@ -84,7 +84,7 @@ index 99b68b09ef..604ec19acb 100644
  
  bazel_dep(name = "rules_xcodeproj")
  local_path_override(
-@@ -10,10 +11,16 @@ local_path_override(
+@@ -10,10 +11,17 @@ local_path_override(
      path = "./build-system/bazel-rules/rules_xcodeproj",
  )
  
@@ -99,12 +99,13 @@ index 99b68b09ef..604ec19acb 100644
 +    patches = [
 +        "//patches:rules_apple_no_exec_platform_constraint.patch",
 +        "//patches:rules_apple_create_simulator_action.patch",
++        "//patches:rules_apple_alticonstool_fix.patch",
 +    ],
 +    patch_strip = 1,
  )
  
  bazel_dep(name = "rules_swift", repo_name = "build_bazel_rules_swift")
-@@ -28,10 +35,45 @@ local_path_override(
+@@ -28,10 +36,45 @@ local_path_override(
      path = "./build-system/bazel-rules/apple_support",
  )
  
@@ -152,7 +153,7 @@ index 99b68b09ef..604ec19acb 100644
  )
  
  http_file(
-@@ -41,9 +83,9 @@ http_file(
+@@ -41,9 +84,9 @@ http_file(
  )
  
  http_file(
@@ -389,6 +390,26 @@ index 0000000000..d518110449
 +++ b/patches/BUILD
 @@ -0,0 +1 @@
 +exports_files(glob(["*.patch"]))
+diff --git a/patches/rules_apple_alticonstool_fix.patch b/patches/rules_apple_alticonstool_fix.patch
+new file mode 100644
+index 0000000000..074718e7f2
+--- /dev/null
++++ b/patches/rules_apple_alticonstool_fix.patch
+@@ -0,0 +1,14 @@
++--- a/tools/alticonstool/alticonstool.py
+++++ b/tools/alticonstool/alticonstool.py
++@@ -47,8 +47,12 @@ def insert_alticons(plist_data, alticons, device_families):
++       "CFBundleIconFiles": sorted(set(map(iconname_from_filename, os.listdir(alticon)))),
++     }
++   if "iphone" in device_families:
+++    if "CFBundleIcons" not in plist_data:
+++      plist_data["CFBundleIcons"] = {}
++     plist_data["CFBundleIcons"]["CFBundleAlternateIcons"] = alticons_data
++   if "ipad" in device_families:
+++    if "CFBundleIcons~ipad" not in plist_data:
+++      plist_data["CFBundleIcons~ipad"] = {}
++     plist_data["CFBundleIcons~ipad"]["CFBundleAlternateIcons"] = alticons_data
++
 diff --git a/patches/rules_apple_create_simulator_action.patch b/patches/rules_apple_create_simulator_action.patch
 new file mode 100644
 index 0000000000..fd14e312d2
@@ -1026,7 +1047,7 @@ index 4bab57e0ce..cc1b0c3f70 100644
  objc_library(
      name = "LegacyDataImportImpl",
 diff --git a/submodules/LottieCpp/BUILD b/submodules/LottieCpp/BUILD
-index b8571c0c94..ce14a55219 100644
+index b8571c0c94..15d0e4b854 100644
 --- a/submodules/LottieCpp/BUILD
 +++ b/submodules/LottieCpp/BUILD
 @@ -1,3 +1,5 @@
@@ -1035,6 +1056,15 @@ index b8571c0c94..ce14a55219 100644
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
  
  objc_library(
+@@ -24,6 +26,8 @@ objc_library(
+     ],
+     cxxopts = [
+         "-std=c++17",
++        "-include",
++        "optional",
+     ],
+     hdrs = glob([
+         "lottiecpp/PublicHeaders/**/*.h",
 diff --git a/submodules/MimeTypes/BUILD b/submodules/MimeTypes/BUILD
 index e4c7fb3d6a..7f6463131f 100644
 --- a/submodules/MimeTypes/BUILD
@@ -2639,20 +2669,26 @@ index ecfef261b0..d3a3c88cbb 100644
      popd
  
 diff --git a/build-system/bazel-rules/apple_support/lib/apple_support.bzl b/build-system/bazel-rules/apple_support/lib/apple_support.bzl
-index f1fa0bd..2482cb8 100644
+index f1fa0bd..7f027d0 100644
 --- a/build-system/bazel-rules/apple_support/lib/apple_support.bzl
 +++ b/build-system/bazel-rules/apple_support/lib/apple_support.bzl
-@@ -199,6 +199,13 @@ def _kwargs_for_apple_platform(
-         apple_common.target_apple_env(xcode_config, apple_fragment.single_arch_platform),
-     )
- 
-+    # Add toolchain bin to PATH so tools like xcrun can be found during
-+    # cross-compilation from Linux (where /usr/bin/xcrun doesn't exist).
-+    developer_dir = merged_env.get("DEVELOPER_DIR", "")
-+    if developer_dir:
-+        toolchain_bin = developer_dir + "/Toolchains/XcodeDefault.xctoolchain/usr/bin"
-+        merged_env["PATH"] = toolchain_bin + ":/usr/local/bin:/usr/bin:/bin"
-+
-     merged_execution_requirements = {}
-     original_execution_requirements = processed_args.get("execution_requirements")
-     if original_execution_requirements:
+@@ -341,6 +341,19 @@ def _run(
+         **kwargs: See `ctx.actions.run` for the rest of the available arguments.
+     """
+     if xcode_path_resolve_level == _XCODE_PATH_RESOLVE_LEVEL.none:
++        # For cross-compilation support: if the executable is a string path to
++        # xcrun, use run_shell so that $DEVELOPER_DIR is expanded by the shell
++        # to resolve the toolchain's xcrun binary.
++        executable = kwargs.get("executable")
++        if types.is_string(executable) and (executable == "/usr/bin/xcrun" or executable == "xcrun"):
++            shell_kwargs = {k: v for k, v in kwargs.items() if k != "executable"}
++            shell_kwargs["command"] = 'exec "$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/xcrun" "$@"'
++            actions.run_shell(**_kwargs_for_apple_platform(
++                xcode_config = xcode_config,
++                apple_fragment = apple_fragment,
++                **shell_kwargs
++            ))
++            return
+         actions.run(**_kwargs_for_apple_platform(
+             xcode_config = xcode_config,
+             apple_fragment = apple_fragment,
