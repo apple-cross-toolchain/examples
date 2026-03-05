@@ -2117,7 +2117,7 @@ index 9040681907..eeaf891f83 100644
  
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
-@@ -76,7 +73,41 @@ genrule(
+@@ -76,7 +73,42 @@ genrule(
  
      mkdir -p "$$BUILD_DIR/Public/libvpx"
  
@@ -2156,7 +2156,8 @@ index 9040681907..eeaf891f83 100644
 +    export CFLAGS="-Wno-error=overriding-option"
 +    export CXXFLAGS="-Wno-error=overriding-option"
 +
-+    PATH="$$BUILD_DIR:$$PATH:$$ABS_YASM_DIR" bash $$BUILD_DIR/build-libvpx-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libvpx" "$$BUILD_DIR"
++    ABS_BUILD_DIR="$$(pwd)/$$(dirname $$BUILD_DIR)/$$(basename $$BUILD_DIR)"
++    PATH="$$ABS_BUILD_DIR:$$PATH:$$ABS_YASM_DIR" bash "$$ABS_BUILD_DIR/build-libvpx-bazel.sh" $$BUILD_ARCH "$$ABS_BUILD_DIR/libvpx" "$$ABS_BUILD_DIR"
      """ +
      "\n".join([
          "cp -f \"$$BUILD_DIR/VPX.framework/Headers/vpx/{}\" \"$(location Public/vpx/{})\"".format(header, header) for header in headers
@@ -2188,6 +2189,16 @@ index 991aab1293..c1caef28af 100755
  ARCH="$1"
  
  SOURCE_DIR=$(echo "$(cd "$(dirname "$2")"; pwd -P)/$(basename "$2")")
+@@ -75,7 +84,8 @@ build_target() {
+ 
+   mkdir "${target}"
+   cd "${target}"
+-  eval "${LIBVPX_SOURCE_DIR}/configure" --target="${target}" \
++  # libvpx's configure script uses bash-specific test operators on Darwin.
++  eval bash "${LIBVPX_SOURCE_DIR}/configure" --target="${target}" \
+     ${CONFIGURE_ARGS} ${EXTRA_CONFIGURE_ARGS} ${target_specific_flags} \
+ 
+   export DIST_DIR
 @@ -129,8 +138,7 @@ create_vpx_framework_config_shim() {
    done
  
