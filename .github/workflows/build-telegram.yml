@@ -28,10 +28,14 @@ jobs:
         run: |
           cd Telegram-iOS
           patch -p1 < ../examples/patches/telegram-ios-cross-compile.patch
+          find build-system/bazel-rules/rules_apple -name '*.bzl' -exec sed -i 's|/usr/bin/xcrun|xcrun|g' {} +
 
       - name: Prepare build environment
         run: |
           sudo apt-get update && sudo apt-get install -y gperf
+
+          printf '#!/bin/bash\nexit 0\n' | sudo tee /usr/local/bin/codesign /usr/local/bin/codesign_allocate > /dev/null
+          sudo chmod +x /usr/local/bin/codesign /usr/local/bin/codesign_allocate
 
           cat > ~/.netrc <<EOF
           machine api.github.com
