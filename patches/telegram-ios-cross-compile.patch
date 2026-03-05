@@ -1,16 +1,18 @@
 diff --git a/.bazelrc b/.bazelrc
-index 1ce9174344..402a612c7b 100644
+index 1ce9174344..3b510730ed 100644
 --- a/.bazelrc
 +++ b/.bazelrc
-@@ -1,18 +1,33 @@
- build --action_env=ZERO_AR_DATE=1
+@@ -1,18 +1,35 @@
+-build --action_env=ZERO_AR_DATE=1
++startup --host_jvm_args=-Xmx12g
  
 -build --apple_platform_type=ios
 -build --enable_platform_specific_config
 -build --apple_crosstool_top=@local_config_apple_cc//:toolchain
 -build --crosstool_top=@local_config_apple_cc//:toolchain
 -build --host_crosstool_top=@local_config_apple_cc//:toolchain
--
++build --action_env=ZERO_AR_DATE=1
+ 
 -build --per_file_copt=".*\.m$","@-fno-objc-msgsend-selector-stubs"
 -build --per_file_copt=".*\.mm$","@-fno-objc-msgsend-selector-stubs"
 +build --define=telegramVersion=11.0
@@ -44,7 +46,7 @@ index 1ce9174344..402a612c7b 100644
  build:dbg --features=swift.emit_swiftsourceinfo
  
  build --strategy=Genrule=standalone
-@@ -22,11 +37,11 @@ build --strategy=SwiftCompile=worker
+@@ -22,11 +39,11 @@ build --strategy=SwiftCompile=worker
  
  #common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
  
