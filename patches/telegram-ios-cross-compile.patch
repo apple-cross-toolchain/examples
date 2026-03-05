@@ -2637,11 +2637,12 @@ index 7a3d123187..84b7fe8bc2 100755
  
    cd "$BUILD_DIR"
    mkdir build
-@@ -24,6 +33,7 @@ if [ "$ARCH" = "arm64" ]; then
+@@ -24,6 +33,8 @@ if [ "$ARCH" = "arm64" ]; then
    echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
    echo "set(CMAKE_C_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
++  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
  
    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} $COMMON_ARGS ../libwebp
    make
