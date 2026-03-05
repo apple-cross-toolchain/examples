@@ -69,7 +69,7 @@ index 0000000000..f7ee06693c
 @@ -0,0 +1 @@
 +9.0.0
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 99b68b09ef..bfeb37ad62 100644
+index 99b68b09ef..006c8dd942 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -1,8 +1,9 @@
@@ -166,6 +166,15 @@ index 99b68b09ef..bfeb37ad62 100644
  )
  
  http_file(
+@@ -60,7 +103,7 @@ provisioning_profile_repository = use_extension("@build_bazel_rules_apple//apple
+ bazel_dep(name = "build_configuration")
+ local_path_override(
+     module_name = "build_configuration",
+-    path = "./build-input/configuration-repository",
++    path = "./build-system/example-configuration",
+ )
+ 
+ bazel_dep(name = "sourcekit_bazel_bsp", version = "0.7.1")
 diff --git a/Telegram/BUILD b/Telegram/BUILD
 index 7eff2fc281..016b26dee1 100644
 --- a/Telegram/BUILD
@@ -383,6 +392,28 @@ index 25729fc4ee..5f94aa8baf 100644
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
  
  objc_library(
+diff --git a/build-system/example-configuration/MODULE.bazel b/build-system/example-configuration/MODULE.bazel
+new file mode 100644
+index 0000000000..ec59250339
+--- /dev/null
++++ b/build-system/example-configuration/MODULE.bazel
+@@ -0,0 +1 @@
++module(name = "build_configuration")
+diff --git a/build-system/example-configuration/variables.bzl b/build-system/example-configuration/variables.bzl
+index ed0fce4614..b7c08a3677 100644
+--- a/build-system/example-configuration/variables.bzl
++++ b/build-system/example-configuration/variables.bzl
+@@ -12,4 +12,7 @@ telegram_premium_iap_product_id = "org.telegram.telegramPremium.monthly"
+ telegram_aps_environment = "production"
+ telegram_enable_siri = True
+ telegram_enable_icloud = True
+-telegram_enable_watch = True
+\ No newline at end of file
++telegram_enable_watch = True
++
++telegram_bazel_path = ""
++telegram_use_xcode_managed_codesigning = False
+\ No newline at end of file
 diff --git a/patches/BUILD b/patches/BUILD
 new file mode 100644
 index 0000000000..d518110449
