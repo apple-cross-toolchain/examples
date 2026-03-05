@@ -392,10 +392,11 @@ index 0000000000..d518110449
 +exports_files(glob(["*.patch"]))
 diff --git a/patches/rules_apple_alticonstool_fix.patch b/patches/rules_apple_alticonstool_fix.patch
 new file mode 100644
-index 0000000000..074718e7f2
+index 0000000000..06a4238ec4
 --- /dev/null
 +++ b/patches/rules_apple_alticonstool_fix.patch
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,16 @@
++diff --git a/tools/alticonstool/alticonstool.py b/tools/alticonstool/alticonstool.py
 +--- a/tools/alticonstool/alticonstool.py
 ++++ b/tools/alticonstool/alticonstool.py
 +@@ -47,8 +47,12 @@ def insert_alticons(plist_data, alticons, device_families):
@@ -409,7 +410,8 @@ index 0000000000..074718e7f2
 ++    if "CFBundleIcons~ipad" not in plist_data:
 ++      plist_data["CFBundleIcons~ipad"] = {}
 +     plist_data["CFBundleIcons~ipad"]["CFBundleAlternateIcons"] = alticons_data
-+
++ 
++ 
 diff --git a/patches/rules_apple_create_simulator_action.patch b/patches/rules_apple_create_simulator_action.patch
 new file mode 100644
 index 0000000000..fd14e312d2
