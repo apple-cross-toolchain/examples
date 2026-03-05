@@ -69,7 +69,7 @@ index 0000000000..f7ee06693c
 @@ -0,0 +1 @@
 +9.0.0
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 99b68b09ef..3357b92949 100644
+index 99b68b09ef..6f859f7d6a 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -1,8 +1,9 @@
@@ -84,20 +84,28 @@ index 99b68b09ef..3357b92949 100644
  
  bazel_dep(name = "rules_xcodeproj")
  local_path_override(
-@@ -10,11 +11,7 @@ local_path_override(
+@@ -10,10 +11,17 @@ local_path_override(
      path = "./build-system/bazel-rules/rules_xcodeproj",
  )
  
 -bazel_dep(name = "rules_apple", repo_name = "build_bazel_rules_apple")
 -local_path_override(
--    module_name = "rules_apple",
--    path = "./build-system/bazel-rules/rules_apple",
--)
 +bazel_dep(name = "rules_apple", version = "4.3.3", repo_name = "build_bazel_rules_apple")
++git_override(
+     module_name = "rules_apple",
+-    path = "./build-system/bazel-rules/rules_apple",
++    remote = "https://github.com/bazelbuild/rules_apple.git",
++    commit = "d930c4c6eaeed91c8275604a428407d123a85216",
++    patches = [
++        "//patches:rules_apple_no_exec_platform_constraint.patch",
++        "//patches:rules_apple_bazel9_compat.patch",
++        "//patches:rules_apple_create_simulator_action.patch",
++    ],
++    patch_strip = 1,
+ )
  
  bazel_dep(name = "rules_swift", repo_name = "build_bazel_rules_swift")
- local_path_override(
-@@ -28,10 +25,45 @@ local_path_override(
+@@ -28,10 +36,45 @@ local_path_override(
      path = "./build-system/bazel-rules/apple_support",
  )
  
@@ -145,7 +153,7 @@ index 99b68b09ef..3357b92949 100644
  )
  
  http_file(
-@@ -41,9 +73,9 @@ http_file(
+@@ -41,9 +84,9 @@ http_file(
  )
  
  http_file(
@@ -375,6 +383,489 @@ index 25729fc4ee..5f94aa8baf 100644
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
  
  objc_library(
+diff --git a/patches/BUILD b/patches/BUILD
+new file mode 100644
+index 0000000000..d518110449
+--- /dev/null
++++ b/patches/BUILD
+@@ -0,0 +1 @@
++exports_files(glob(["*.patch"]))
+diff --git a/patches/rules_apple_bazel9_compat.patch b/patches/rules_apple_bazel9_compat.patch
+new file mode 100644
+index 0000000000..aac4ea34d9
+--- /dev/null
++++ b/patches/rules_apple_bazel9_compat.patch
+@@ -0,0 +1,11 @@
++--- a/apple/internal/platform_support.bzl
+++++ b/apple/internal/platform_support.bzl
++@@ -93,7 +93,7 @@
++       A struct representing the collected platform information.
++     """
++     platform_type_attr = getattr(apple_common.platform_type, platform_type_string)
++-    platform = apple_fragment.multi_arch_platform(platform_type_attr)
+++    platform = apple_fragment.single_arch_platform
++
++     if explicit_minimum_os:
++         minimum_os = explicit_minimum_os
+diff --git a/patches/rules_apple_create_simulator_action.patch b/patches/rules_apple_create_simulator_action.patch
+new file mode 100644
+index 0000000000..fd14e312d2
+--- /dev/null
++++ b/patches/rules_apple_create_simulator_action.patch
+@@ -0,0 +1,34 @@
++diff --git a/apple/testing/default_runner/ios_xctestrun_runner.bzl b/apple/testing/default_runner/ios_xctestrun_runner.bzl
++--- a/apple/testing/default_runner/ios_xctestrun_runner.bzl
+++++ b/apple/testing/default_runner/ios_xctestrun_runner.bzl
++@@ -80,7 +80,7 @@
++     runfiles = ctx.runfiles(files = [
++         ctx.file._xctestrun_template,
++         ctx.file._xctrunner_entitlements_template,
++-    ]).merge(ctx.attr._simulator_creator[DefaultInfo].default_runfiles)
+++    ]).merge(ctx.attr.create_simulator_action[DefaultInfo].default_runfiles)
++
++     default_action_binary = "/usr/bin/true"
++
++@@ -100,7 +100,7 @@
++             create_xcresult_bundle = "true" if ctx.attr.create_xcresult_bundle else "false",
++             device_type = device_type,
++             os_version = os_version,
++-            simulator_creator = ctx.executable._simulator_creator.short_path,
+++            simulator_creator = ctx.executable.create_simulator_action.short_path,
++             random = ctx.attr.random,
++             xcodebuild_args = " ".join(ctx.attr.xcodebuild_args) if ctx.attr.xcodebuild_args else "",
++             command_line_args = " ".join(ctx.attr.command_line_args) if ctx.attr.command_line_args else "",
++@@ -193,10 +193,11 @@
++ When true, the exit code of the test run will be set to the exit code of the post action. This is useful for tests that need to fail the test run based on their own criteria.
++ """,
++         ),
++-        "_simulator_creator": attr.label(
+++        "create_simulator_action": attr.label(
++             default = Label(
++                 "//apple/testing/default_runner:simulator_creator",
++             ),
+++            doc = "A binary that creates or reuses a simulator and prints its UDID to stdout.",
++             executable = True,
++             cfg = "exec",
++         ),
+diff --git a/patches/rules_apple_no_exec_platform_constraint.patch b/patches/rules_apple_no_exec_platform_constraint.patch
+new file mode 100644
+index 0000000000..a49639698b
+--- /dev/null
++++ b/patches/rules_apple_no_exec_platform_constraint.patch
+@@ -0,0 +1,413 @@
++diff --git a/apple/internal/codesigning_support.bzl b/apple/internal/codesigning_support.bzl
++index 61bbc88..092c6ad 100644
++--- a/apple/internal/codesigning_support.bzl
+++++ b/apple/internal/codesigning_support.bzl
++@@ -121,7 +121,7 @@ def _codesign_args_for_path(
++ 
++     cmd_codesigning = [
++         "--codesign",
++-        "/usr/bin/codesign",
+++        "codesign",
++     ]
++ 
++     # Add quotes for sanitizing inputs when they're invoked directly from a shell script, for
++diff --git a/apple/internal/entitlements_support.bzl b/apple/internal/entitlements_support.bzl
++index 40f3d1f..1c0e447 100644
++--- a/apple/internal/entitlements_support.bzl
+++++ b/apple/internal/entitlements_support.bzl
++@@ -386,20 +386,10 @@ def _generate_der_entitlements(
++     der_entitlements = actions.declare_file(
++         "entitlements/%s.der" % label_name,
++     )
++-    apple_support.run(
+++    apple_support.run_shell(
++         actions = actions,
++         apple_fragment = apple_fragment,
++-        arguments = [
++-            "query",
++-            "-f",
++-            "xml",
++-            "-i",
++-            entitlements.path,
++-            "-o",
++-            der_entitlements.path,
++-            "--raw",
++-        ],
++-        executable = "/usr/bin/derq",
+++        command = "touch " + der_entitlements.path,
++         inputs = [entitlements],
++         mnemonic = "ProcessDEREntitlements",
++         outputs = [der_entitlements],
++diff --git a/apple/internal/partials/apple_symbols_file.bzl b/apple/internal/partials/apple_symbols_file.bzl
++index 1a5cfb3..b9e3e7f 100644
++--- a/apple/internal/partials/apple_symbols_file.bzl
+++++ b/apple/internal/partials/apple_symbols_file.bzl
++@@ -76,7 +76,7 @@ def _apple_symbols_file_partial_impl(
++             inputs = inputs,
++             outputs = [output],
++             command = (
++-                "mkdir -p {output} && /usr/bin/xcrun symbols -noTextInSOD " +
+++                "mkdir -p {output} && xcrun symbols -noTextInSOD " +
++                 "-noDaemon -arch all -symbolsPackageDir {output} {inputs} >/dev/null"
++             ).format(
++                 output = shell.quote(output.path),
++diff --git a/apple/internal/resource_actions/app_intents.bzl b/apple/internal/resource_actions/app_intents.bzl
++index 4c36b3f..3c90e88 100644
++--- a/apple/internal/resource_actions/app_intents.bzl
+++++ b/apple/internal/resource_actions/app_intents.bzl
++@@ -68,7 +68,7 @@ def generate_app_intents_metadata_bundle(
++     )
++ 
++     args = actions.args()
++-    args.add("/usr/bin/xcrun")
+++    args.add("xcrun")
++     args.add("appintentsmetadataprocessor")
++ 
++     # FB347041279: Though this is not required for --compile-time-extraction, which is the only
++diff --git a/apple/internal/rule_factory.bzl b/apple/internal/rule_factory.bzl
++index 87a642e..be0534c 100644
++--- a/apple/internal/rule_factory.bzl
+++++ b/apple/internal/rule_factory.bzl
++@@ -146,9 +146,6 @@ def _create_apple_rule(
++         ),
++         cfg = cfg,
++         doc = doc,
++-        exec_compatible_with = [
++-            "@platforms//os:macos",
++-        ],
++         executable = is_executable,
++         fragments = ["apple", "cpp", "objc", "j2objc"],
++         toolchains = toolchains,
++@@ -180,13 +177,6 @@ def _create_apple_test_rule(*, doc, implementation, platform_type):
++             *ide_visible_attrs
++         ),
++         doc = doc,
++-        exec_groups = {
++-            "test": exec_group(
++-                exec_compatible_with = [
++-                    "@platforms//os:macos",
++-                ],
++-            ),
++-        },
++         test = True,
++     )
++ 
++diff --git a/apple/internal/templates/docc_preview.template.sh b/apple/internal/templates/docc_preview.template.sh
++index 981af14..94fb06a 100644
++--- a/apple/internal/templates/docc_preview.template.sh
+++++ b/apple/internal/templates/docc_preview.template.sh
++@@ -45,7 +45,7 @@ env -i \
++   APPLE_SDK_PLATFORM="$platform" \
++   APPLE_SDK_VERSION_OVERRIDE="$sdk_version" \
++   XCODE_VERSION_OVERRIDE="$xcode_version" \
++-  /usr/bin/xcrun docc preview \
+++  xcrun docc preview \
++   --fallback-display-name "$fallback_display_name" \
++   --fallback-bundle-identifier "$fallback_bundle_identifier" \
++   --fallback-bundle-version "$fallback_bundle_version" \
++diff --git a/apple/internal/templates/macos.template.sh b/apple/internal/templates/macos.template.sh
++index faf6656..72d08ec 100644
++--- a/apple/internal/templates/macos.template.sh
+++++ b/apple/internal/templates/macos.template.sh
++@@ -44,7 +44,7 @@ find -L "$(dirname %app_path%)" -path "*.dSYM/Contents/Resources/DWARF/*" -exec
++ # Get the bundle executable name of the app. Read this from the plist in case it
++ # differs from the app name.
++ readonly BUNDLE_INFO_PLIST="${APP_DIR}/Contents/Info.plist"
++-readonly BUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
+++readonly BUNDLE_EXECUTABLE=$(PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
++ 
++ # Launch the app binary
++ # Do *not* use exec here because we want the trap above to execute after the
++diff --git a/tools/environment_plist/environment_plist.sh b/tools/environment_plist/environment_plist.sh
++index 1dca56d..f52ec5b 100755
++--- a/tools/environment_plist/environment_plist.sh
+++++ b/tools/environment_plist/environment_plist.sh
++@@ -26,6 +26,16 @@
++ 
++ set -eu
++ 
+++# Resolve DEVELOPER_DIR via xcode-select if not already set.
+++if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+++  DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)"
+++fi
+++# When DEVELOPER_DIR is set, prepend the toolchain bin directory to PATH
+++# so that xcrun, PlistBuddy, plutil, sw_vers, etc. are found there.
+++if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+++  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
+++fi
+++
++ while [[ $# > 1 ]]
++ do
++ key="$1"
++@@ -47,7 +57,7 @@ shift
++ done
++ 
++ set +e
++-PLATFORM_DIR=$(/usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
+++PLATFORM_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
++ XCRUN_EXITCODE=$?
++ set -e
++ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
++@@ -55,31 +65,32 @@ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
++ and SDK version pair is not available."
++   # Since this already failed, assume this is going to fail again. With
++   # set -e, this will produce the appropriate stderr and error code.
++-  /usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
+++  xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
++ fi
++ 
++ PLATFORM_PLIST="${PLATFORM_DIR}"/Info.plist
+++SDK_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-path 2>/dev/null)
++ TEMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/bazel_environment.XXXXXX")
++ PLIST="${TEMPDIR}/env.plist"
++ trap 'rm -rf "${TEMPDIR}"' ERR EXIT
++ 
++-os_build=$(sw_vers -buildVersion)
++-compiler=$(/usr/libexec/PlistBuddy -c "Print :DefaultProperties:DEFAULT_COMPILER" "${PLATFORM_PLIST}")
++-xcodebuild_version_sdk_output=$(/usr/bin/xcrun xcodebuild -version -sdk "${PLATFORM}" 2>/dev/null)
++-xcodebuild_version_output=$(/usr/bin/xcrun xcodebuild -version 2>/dev/null)
++-# Parses 'PlatformVersion N.N' into N.N.
++-platform_version=$(echo "${xcodebuild_version_sdk_output}" | grep PlatformVersion | cut -d ' ' -f2)
++-# Parses 'ProductBuildVersion NNNN' into NNNN.
++-sdk_build=$(echo "${xcodebuild_version_sdk_output}" | grep ProductBuildVersion | cut -d ' ' -f2)
++-platform_build=$"${sdk_build}"
++-# Parses 'Build version NNNN' into NNNN.
++-xcode_build=$(echo "${xcodebuild_version_output}" | grep Build | cut -d ' ' -f3)
++-# Parses 'Xcode N.N' into N.N.
++-xcode_version_string=$(echo "${xcodebuild_version_output}" | grep Xcode | cut -d ' ' -f2)
+++os_build=$(sw_vers --buildVersion)
+++compiler=$(PlistBuddy -c "Print :DefaultProperties:DEFAULT_COMPILER" "${PLATFORM_PLIST}")
+++
+++# Extract version info from plist files instead of xcodebuild.
+++# This avoids requiring xcodebuild which may not be available on Linux.
+++platform_version=$(PlistBuddy -c "Print :Version" "${PLATFORM_PLIST}" 2>/dev/null || echo "")
+++sdk_build=$(PlistBuddy -c "Print :ProductBuildVersion" "${SDK_DIR}/System/Library/CoreServices/SystemVersion.plist" 2>/dev/null || echo "")
+++platform_build="${sdk_build}"
+++
+++# Get Xcode version info from the Xcode version.plist
+++XCODE_VERSION_PLIST="${DEVELOPER_DIR}/../version.plist"
+++xcode_build=$(PlistBuddy -c "Print :ProductBuildVersion" "${XCODE_VERSION_PLIST}" 2>/dev/null || echo "")
+++xcode_version_string=$(PlistBuddy -c "Print :CFBundleShortVersionString" "${XCODE_VERSION_PLIST}" 2>/dev/null || echo "")
++ # Converts '7.1' -> 0710, and '7.1.1' -> 0711.
++-xcode_version=$(/usr/bin/printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
+++xcode_version=$(printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
++ 
++-/usr/libexec/PlistBuddy \
+++PlistBuddy \
++     -c "Add :DTPlatformBuild string ${platform_build:-""}" \
++     -c "Add :DTSDKBuild string ${sdk_build:-""}" \
++     -c "Add :DTPlatformVersion string ${platform_version:-""}" \
++diff --git a/tools/plisttool/plisttool.py b/tools/plisttool/plisttool.py
++--- a/tools/plisttool/plisttool.py
+++++ b/tools/plisttool/plisttool.py
++@@ -791,19 +791,4 @@
++     plist_contents = plist_file.read()
++ 
++-    # Binary plists are easy to identify because they start with 'bplist'. For
++-    # plain text plists, it may be possible to have leading whitespace, but
++-    # well-formed XML should *not* have any whitespace before the XML
++-    # declaration, so we can check that the plist is not XML and let plutil
++-    # handle them the same way.
++-    if not plist_contents.startswith(b'<?xml'):
++-      plutil_process = subprocess.Popen(
++-          ['plutil', '-convert', 'xml1', '-o', '-', '--', '-'],
++-          stdout=subprocess.PIPE,
++-          stdin=subprocess.PIPE
++-      )
++-      plist_contents, _ = plutil_process.communicate(plist_contents)
++-      if plutil_process.returncode:
++-        raise PlistToolError(PLUTIL_CONVERSION_TO_XML_FAILED_MSG % (
++-            target, plutil_process.returncode, name))
++-
+++    # plistlib.loads() handles XML, binary, and old-style ASCII plists natively.
++     return plist_from_bytes(plist_contents)
++@@ -824,12 +824,10 @@
++     """
++-    if isinstance(path_or_file, str):
++-      with open(path_or_file, 'wb') as fp:
++-        plistlib.dump(plist, fp)
++-    else:
++-      plistlib.dump(plist, path_or_file)
++-
++-    if binary and isinstance(path_or_file, str):
++-      subprocess.check_call(['plutil', '-convert', 'binary1', path_or_file])
+++    if isinstance(path_or_file, str):
+++      fmt = plistlib.FMT_BINARY if binary else plistlib.FMT_XML
+++      with open(path_or_file, 'wb') as fp:
+++        plistlib.dump(plist, fp, fmt=fmt)
+++    else:
+++      plistlib.dump(plist, path_or_file)
++ 
++ 
++ class PlistToolTask(object):
++diff --git a/tools/wrapper_common/execute.py b/tools/wrapper_common/execute.py
++--- a/tools/wrapper_common/execute.py
+++++ b/tools/wrapper_common/execute.py
++@@ -18,6 +18,27 @@ import os
++ import re
++ import subprocess
++ import sys
++ 
+++
+++def _ensure_toolchain_path():
+++  """Prepend toolchain bin to PATH using DEVELOPER_DIR or xcode-select."""
+++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
+++  if not dev_dir:
+++    try:
+++      result = subprocess.run(
+++        ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
+++      )
+++      if result.returncode == 0:
+++        dev_dir = result.stdout.strip()
+++    except Exception:
+++      pass
+++  if dev_dir:
+++    bin_dir = os.path.join(dev_dir, "Toolchains",
+++                           "XcodeDefault.xctoolchain", "usr", "bin")
+++    if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
+++      os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
+++
+++_ensure_toolchain_path()
+++
++ # LINT.IfChange
++ _DEFAULT_TIMEOUT = 900
++diff --git a/apple/BUILD b/apple/BUILD
++--- a/apple/BUILD
+++++ b/apple/BUILD
++@@ -331,3 +331,16 @@ apple_resource_hint(
++     name = "suppress_resources",
++     action = apple_resource_hint_action.suppress,
++ )
+++
+++# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
+++# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
+++#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
+++label_flag(
+++    name = "sdk_tool_files",
+++    build_setting_default = ":_empty_sdk_tool_files",
+++)
+++
+++filegroup(
+++    name = "_empty_sdk_tool_files",
+++    srcs = [],
+++)
++diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
++--- a/apple/internal/apple_toolchains.bzl
+++++ b/apple/internal/apple_toolchains.bzl
++@@ -123,5 +123,9 @@ def _shared_attrs():
++     """Private attributes on every rule to provide access to bundling tools and other file deps."""
++     return {
+++        "_sdk_tool_files": attr.label(
+++            default = Label("//apple:sdk_tool_files"),
+++            allow_files = True,
+++        ),
++         "_mac_toolchain": attr.label(
++             default = Label("//apple/internal:mac_tools_toolchain"),
++             providers = [[AppleMacToolsToolchainInfo]],
++diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
++--- a/apple/internal/environment_plist.bzl
+++++ b/apple/internal/environment_plist.bzl
++@@ -65,6 +65,7 @@
++     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
++     platform = platform_prerequisites.platform
++     sdk_version = platform_prerequisites.sdk_version
+++    sdk_tool_files = ctx.files._sdk_tool_files
++     apple_support.run(
++         actions = ctx.actions,
++         apple_fragment = platform_prerequisites.apple_fragment,
++@@ -74,6 +75,7 @@
++             "--output",
++             ctx.outputs.plist.path,
++         ],
++         executable = environment_plist_tool,
+++        inputs = sdk_tool_files,
++         outputs = [ctx.outputs.plist],
++         xcode_config = platform_prerequisites.xcode_version_config,
++     )
++diff --git a/apple/internal/compilation_support.bzl b/apple/internal/compilation_support.bzl
++index cbc7f8a..e94078a 100644
++--- a/apple/internal/compilation_support.bzl
+++++ b/apple/internal/compilation_support.bzl
++@@ -180,7 +180,7 @@ def _register_binary_strip_action(
++ 
++     ctx.actions.run(
++         mnemonic = "ObjcBinarySymbolStrip",
++-        executable = "/usr/bin/xcrun",
+++        executable = "xcrun",
++         arguments = [args],
++         inputs = [binary],
++         outputs = [stripped_binary],
++diff --git a/apple/internal/docc.bzl b/apple/internal/docc.bzl
++index 05f7a9a..53ee480 100644
++--- a/apple/internal/docc.bzl
+++++ b/apple/internal/docc.bzl
++@@ -160,7 +160,7 @@ def _docc_archive_impl(ctx):
++         inputs = depset(docc_build_inputs),
++         outputs = [doccarchive_dir],
++         mnemonic = "DocCConvert",
++-        executable = "/usr/bin/xcrun",
+++        executable = "xcrun",
++         arguments = [arguments],
++         progress_message = "Converting .doccarchive for %{label}",
++         execution_requirements = execution_requirements,
++diff --git a/apple/internal/resource_actions/metals.bzl b/apple/internal/resource_actions/metals.bzl
++index 48f6c44..84c7236 100644
++--- a/apple/internal/resource_actions/metals.bzl
+++++ b/apple/internal/resource_actions/metals.bzl
++@@ -89,7 +89,7 @@ def compile_metals(*, actions, input_files, output_file, platform_prerequisites,
++ 
++         apple_support.run(
++             actions = actions,
++-            executable = "/usr/bin/xcrun",
+++            executable = "xcrun",
++             inputs = [input_metal] + hdrs,
++             outputs = [air_file],
++             arguments = [args],
++@@ -107,7 +107,7 @@ def compile_metals(*, actions, input_files, output_file, platform_prerequisites,
++ 
++     apple_support.run(
++         actions = actions,
++-        executable = "/usr/bin/xcrun",
+++        executable = "xcrun",
++         inputs = air_files,
++         outputs = [output_file],
++         arguments = [args],
++diff --git a/apple/internal/resource_actions/png.bzl b/apple/internal/resource_actions/png.bzl
++index 2357f32..574ae56 100644
++--- a/apple/internal/resource_actions/png.bzl
+++++ b/apple/internal/resource_actions/png.bzl
++@@ -56,7 +56,7 @@ def copy_png(*, actions, input_file, output_file, platform_prerequisites):
++                 input_file.path,
++                 output_file.path,
++             ],
++-            executable = "/usr/bin/xcrun",
+++            executable = "xcrun",
++             inputs = [input_file],
++             mnemonic = "CopyPng",
++             outputs = [output_file],
++diff --git a/apple/internal/resource_actions/texture_atlas.bzl b/apple/internal/resource_actions/texture_atlas.bzl
++index ffa0ba4..79be619 100644
++--- a/apple/internal/resource_actions/texture_atlas.bzl
+++++ b/apple/internal/resource_actions/texture_atlas.bzl
++@@ -43,7 +43,7 @@ def compile_texture_atlas(
++             input_path,
++             output_dir.path,
++         ],
++-        executable = "/usr/bin/xcrun",
+++        executable = "xcrun",
++         inputs = input_files,
++         mnemonic = "CompileTextureAtlas",
++         outputs = [output_dir],
++diff --git a/apple/internal/resource_rules/apple_metal_library.bzl b/apple/internal/resource_rules/apple_metal_library.bzl
++index 4a4e211..c48855d 100644
++--- a/apple/internal/resource_rules/apple_metal_library.bzl
+++++ b/apple/internal/resource_rules/apple_metal_library.bzl
++@@ -98,7 +98,7 @@ def _apple_metal_library_impl(ctx):
++         actions = ctx.actions,
++         apple_fragment = platform_prerequisites.apple_fragment,
++         arguments = [args],
++-        executable = "/usr/bin/xcrun",
+++        executable = "xcrun",
++         inputs = ctx.files.srcs + ctx.files.hdrs,
++         mnemonic = "MetallibCompile",
++         outputs = [out],
 diff --git a/submodules/AnimationCompression/BUILD b/submodules/AnimationCompression/BUILD
 index 812408ebf6..618ce40ed8 100644
 --- a/submodules/AnimationCompression/BUILD
@@ -2164,197 +2655,4 @@ index ecfef261b0..d3a3c88cbb 100644
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" cmake .. -DYASM_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DPYTHON_EXECUTABLE="$$(which python3)"
      make -j $$core_count
      popd
- 
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/Bundle/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/Bundle/BUILD
-index c8f96d40..d9ee835a 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/Bundle/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/Bundle/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- load("@build_bazel_rules_apple//apple:macos.bzl", "macos_bundle")
- 
- cc_library(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineTool/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineTool/BUILD
-index 0f8d2cf7..197ae74c 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineTool/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineTool/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load("@build_bazel_rules_apple//apple:apple.bzl", "apple_universal_binary")
- load("@build_bazel_rules_apple//apple:macos.bzl", "macos_command_line_application")
- load("@build_bazel_rules_swift//swift:swift.bzl", "swift_binary")
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineToolLib/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineToolLib/BUILD
-index 4ec66638..e3e57e19 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineToolLib/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/CommandLineToolLib/BUILD
-@@ -1,3 +1,5 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
- 
- objc_library(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/external/BUILD.tpl b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/external/BUILD.tpl
-index 950f1aae..3c94a949 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/external/BUILD.tpl
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/external/BUILD.tpl
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load(
-     "@build_bazel_rules_apple//apple:apple.bzl",
-     "apple_static_framework_import",
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/swift_interop_hint/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/swift_interop_hint/BUILD
-index 7f474452..43c09ebf 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/swift_interop_hint/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/CommandLine/swift_interop_hint/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- load(
-     "@build_bazel_rules_swift//swift:swift_interop_hint.bzl",
-     "swift_interop_hint",
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/external/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/external/BUILD
-index 15618b01..6ca3efcb 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/external/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/external/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- load(":local_includes.bzl", "local_includes")
- 
- cc_library(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/BUILD
-index 22ccf8cd..a1ee8961 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- cc_library(
-     name = "cc_lib_defines",
-     srcs = [
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/impl/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/impl/BUILD
-index 96222481..0e966295 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/impl/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib/impl/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- load("@examples_cc_external//:local_includes.bzl", "local_includes")
- 
- cc_library(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib2/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib2/BUILD
-index d1855a6d..33ec1a7d 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib2/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib2/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- cc_library(
-     name = "cc_lib_impl",
-     srcs = [
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib3/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib3/BUILD
-index 869ea139..c43851b1 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib3/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/lib3/BUILD
-@@ -1,3 +1,5 @@
-+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-+load("@rules_cc//cc:cc_library.bzl", "cc_library")
- cc_library(
-     name = "cc_lib_impl",
-     srcs = [
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/tool/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/tool/BUILD
-index a447a118..0ece7eff 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/tool/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/cc/tool/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
- cc_binary(
-     name = "tool",
-     srcs = ["main.c"],
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsMixed/MixedAnswer/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsMixed/MixedAnswer/BUILD
-index 999a565a..20a1f572 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsMixed/MixedAnswer/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsMixed/MixedAnswer/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load(
-     "@build_bazel_rules_swift//swift:swift.bzl",
-     "swift_interop_hint",
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsObjC/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsObjC/BUILD
-index e17305ce..59f85fdf 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsObjC/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/CoreUtilsObjC/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load("@build_bazel_rules_apple//apple:ios.bzl", "ios_framework")
- 
- objc_library(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/Utils/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/Utils/BUILD
-index 2e910a76..4076bd41 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/Utils/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Source/Utils/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- objc_library(
-     name = "Utils",
-     srcs = glob(
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Test/ObjCUnitTests/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Test/ObjCUnitTests/BUILD
-index 2e0f45ad..a0eae9be 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Test/ObjCUnitTests/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/integration/iOSApp/Test/ObjCUnitTests/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load(
-     "@build_bazel_rules_apple//apple:ios.bzl",
-     "ios_unit_test",
-diff --git a/build-system/bazel-rules/rules_xcodeproj/examples/sanitizers/UndefinedBehaviorSanitizerApp/BUILD b/build-system/bazel-rules/rules_xcodeproj/examples/sanitizers/UndefinedBehaviorSanitizerApp/BUILD
-index 5a5122fa..cbbead20 100644
---- a/build-system/bazel-rules/rules_xcodeproj/examples/sanitizers/UndefinedBehaviorSanitizerApp/BUILD
-+++ b/build-system/bazel-rules/rules_xcodeproj/examples/sanitizers/UndefinedBehaviorSanitizerApp/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load("@build_bazel_rules_apple//apple:ios.bzl", "ios_application")
- 
- ios_application(
-diff --git a/build-system/bazel-rules/sourcekit-bazel-bsp/Example/HelloWorld/BUILD b/build-system/bazel-rules/sourcekit-bazel-bsp/Example/HelloWorld/BUILD
-index 327aa02..35846bd 100644
---- a/build-system/bazel-rules/sourcekit-bazel-bsp/Example/HelloWorld/BUILD
-+++ b/build-system/bazel-rules/sourcekit-bazel-bsp/Example/HelloWorld/BUILD
-@@ -1,3 +1,4 @@
-+load("@rules_cc//cc:objc_library.bzl", "objc_library")
- load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template_rule")
- load("@rules_apple//apple:ios.bzl", "ios_application", "ios_unit_test", "ios_build_test", "ios_ui_test")
- load("@rules_apple//apple:macos.bzl", "macos_application", "macos_command_line_application", "macos_unit_test")
-diff --git a/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h b/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
-index e702972..3e8e237 100644
---- a/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
-+++ b/submodules/LottieCpp/lottiecpp/PublicHeaders/LottieCpp/Vectors.h
-@@ -5,6 +5,7 @@
- 
- #include <stdlib.h>
- #include <math.h>
-+#include <optional>
- 
- #include <LottieCpp/lottiejson11.hpp>
- #include <LottieCpp/LottieSimd.h>
-@@ -130,6 +131,13 @@ struct Vector3D {
-     explicit Vector3D(lottiejson11::Json const &json) noexcept(false);
-     lottiejson11::Json toJson() const;
-     
-+    bool operator==(Vector3D const &rhs) const {
-+        return x == rhs.x && y == rhs.y && z == rhs.z;
-+    }
-+    bool operator!=(Vector3D const &rhs) const {
-+        return !(*this == rhs);
-+    }
-+
-     float x = 0.0;
-     float y = 0.0;
-     float z = 0.0;
-diff --git a/submodules/LottieCpp/lottiecpp/Sources/Lottie/Private/Parsing/JsonParsing.hpp b/submodules/LottieCpp/lottiecpp/Sources/Lottie/Private/Parsing/JsonParsing.hpp
-index a0bd795..6ef34c7 100644
---- a/submodules/LottieCpp/lottiecpp/Sources/Lottie/Private/Parsing/JsonParsing.hpp
-+++ b/submodules/LottieCpp/lottiecpp/Sources/Lottie/Private/Parsing/JsonParsing.hpp
-@@ -4,6 +4,7 @@
- #include <LottieCpp/lottiejson11.hpp>
- 
- #include <exception>
-+#include <optional>
- #include <string>
- #include <vector>
  
