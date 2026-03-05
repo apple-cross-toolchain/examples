@@ -1,0 +1,57 @@
+name: build-telegram
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_telegram:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: examples
+
+      - name: Clone Telegram-iOS
+        run: |
+          git init Telegram-iOS
+          cd Telegram-iOS
+          git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
+          git fetch --depth 1 origin 7504a0f92694a3ccbb544e05f97304f8d0891ba9
+          git checkout FETCH_HEAD
+          git submodule update --init --recursive
+
+      - name: Apply cross-compilation patch
+        run: |
+          cd Telegram-iOS
+          patch -p1 < ../examples/patches/telegram-ios-cross-compile.patch
+
+      - name: Prepare build environment
+        run: |
+          sudo apt-get update && sudo apt-get install -y gperf
+
+          cat > ~/.netrc <<EOF
+          machine api.github.com
+          login ${{ secrets.SDKS_USER }}
+          password ${{ secrets.SDKS_PASSWORD }}
+          EOF
+          chmod 600 ~/.netrc
+
+          cd Telegram-iOS
+          sed -i 's|SDKS_URL|${{ secrets.SDKS_URL }}|g' MODULE.bazel
+
+          cp -r build-system/example-configuration build-input/configuration-repository
+          echo 'module(name = "build_configuration")' > build-input/configuration-repository/MODULE.bazel
+
+      - name: Build Telegram
+        run: |
+          cd Telegram-iOS
+          bazel build //Telegram:Telegram
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Telegram.ipa
+          path: Telegram-iOS/bazel-bin/Telegram/Telegram.ipa
