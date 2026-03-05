@@ -33,9 +33,6 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y gperf
 
-          printf '#!/bin/bash\nexit 0\n' | sudo tee /usr/local/bin/codesign /usr/local/bin/codesign_allocate > /dev/null
-          sudo chmod +x /usr/local/bin/codesign /usr/local/bin/codesign_allocate
-
           cat > ~/.netrc <<EOF
           machine api.github.com
           login ${{ secrets.SDKS_USER }}
