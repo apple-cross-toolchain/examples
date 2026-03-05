@@ -43,6 +43,7 @@ jobs:
           cd Telegram-iOS
           sed -i 's|SDKS_URL|${{ secrets.SDKS_URL }}|g' MODULE.bazel
 
+          mkdir -p build-input
           cp -r build-system/example-configuration build-input/configuration-repository
           echo 'module(name = "build_configuration")' > build-input/configuration-repository/MODULE.bazel
 
