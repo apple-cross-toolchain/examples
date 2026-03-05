@@ -256,6 +256,62 @@ diff --git a/tools/wrapper_common/execute.py b/tools/wrapper_common/execute.py
 +
  # LINT.IfChange
  _DEFAULT_TIMEOUT = 900
+diff --git a/apple/BUILD b/apple/BUILD
+--- a/apple/BUILD
++++ b/apple/BUILD
+@@ -5,6 +5,19 @@
+ package(default_visibility = ["//visibility:public"])
+ 
+ licenses(["notice"])
++
++# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
++# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
++#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
++label_flag(
++    name = "sdk_tool_files",
++    build_setting_default = ":_empty_sdk_tool_files",
++)
++
++filegroup(
++    name = "_empty_sdk_tool_files",
++    srcs = [],
++)
+ 
+ # Create a set of public config_settings that can be used in select()s.
+ [
+diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
+--- a/apple/internal/apple_toolchains.bzl
++++ b/apple/internal/apple_toolchains.bzl
+@@ -119,6 +119,10 @@
+ def _shared_attrs():
+     """Private attributes on every rule to provide access to bundling tools and other file deps."""
+     return {
++        "_sdk_tool_files": attr.label(
++            default = Label("//apple:sdk_tool_files"),
++            allow_files = True,
++        ),
+         "_mac_toolchain": attr.label(
+             default = Label("//apple/internal:mac_tools_toolchain"),
+             providers = [[AppleMacToolsToolchainInfo]],
+diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
+--- a/apple/internal/environment_plist.bzl
++++ b/apple/internal/environment_plist.bzl
+@@ -65,6 +65,7 @@
+     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
+     platform = platform_prerequisites.platform
+     sdk_version = platform_prerequisites.sdk_version
++    sdk_tool_files = ctx.files._sdk_tool_files
+     apple_support.run(
+         actions = ctx.actions,
+         apple_fragment = platform_prerequisites.apple_fragment,
+@@ -75,6 +76,7 @@
+             ctx.outputs.plist.path,
+         ],
+         executable = environment_plist_tool,
++        inputs = sdk_tool_files,
+         outputs = [ctx.outputs.plist],
+         xcode_config = platform_prerequisites.xcode_version_config,
+     )
 diff --git a/tools/xctoolrunner/xctoolrunner.py b/tools/xctoolrunner/xctoolrunner.py
 index 43937d3..40b5cb6 100644
 --- a/tools/xctoolrunner/xctoolrunner.py
