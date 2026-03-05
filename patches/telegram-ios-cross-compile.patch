@@ -619,9 +619,9 @@ index 0000000000..a49639698b
 + 
 + set -eu
 + 
-++# Resolve DEVELOPER_DIR via xcode-select if not already set.
-++if [[ -z "${DEVELOPER_DIR:-}" ]]; then
-++  DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)"
+++# rules_applecross provides DEVELOPER_DIR for Bazel actions.
+++if [[ -n "${DEVELOPER_DIR:-}" && "${DEVELOPER_DIR}" != /* ]]; then
+++  DEVELOPER_DIR="$(cd "${DEVELOPER_DIR}" && pwd -P)"
 ++fi
 ++# When DEVELOPER_DIR is set, prepend the toolchain bin directory to PATH
 ++# so that xcrun, PlistBuddy, plutil, sw_vers, etc. are found there.
@@ -743,18 +743,10 @@ index 0000000000..a49639698b
 + 
 ++
 ++def _ensure_toolchain_path():
-++  """Prepend toolchain bin to PATH using DEVELOPER_DIR or xcode-select."""
+++  """Prepend toolchain bin to PATH using DEVELOPER_DIR."""
 ++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
-++  if not dev_dir:
-++    try:
-++      result = subprocess.run(
-++        ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
-++      )
-++      if result.returncode == 0:
-++        dev_dir = result.stdout.strip()
-++    except Exception:
-++      pass
 ++  if dev_dir:
+++    dev_dir = os.path.realpath(dev_dir)
 ++    bin_dir = os.path.join(dev_dir, "Toolchains",
 ++                           "XcodeDefault.xctoolchain", "usr", "bin")
 ++    if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
@@ -1521,7 +1513,7 @@ index 2c1758dee2..e302ef44f3 100644
  
 +        # Resolve DEVELOPER_DIR to absolute path
 +        if [ -n "$${DEVELOPER_DIR:-}" ] && [ "$${DEVELOPER_DIR}" = "$${DEVELOPER_DIR#/}" ]; then
-+          export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd)"
++          export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd -P)"
 +        fi
 +        if [ -n "$${DEVELOPER_DIR:-}" ]; then
 +          export PATH="$$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$$PATH"
@@ -1758,7 +1750,7 @@ index ba022d0420..b5d55d4d30 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 +    # Resolve DEVELOPER_DIR to absolute path
 +    if [ -n "$${DEVELOPER_DIR:-}" ] && [ "$${DEVELOPER_DIR}" = "$${DEVELOPER_DIR#/}" ]; then
-+      export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd)"
++      export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd -P)"
      fi
 +    if [ -n "$${DEVELOPER_DIR:-}" ]; then
 +      export PATH="$$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$$PATH"
@@ -1782,10 +1774,15 @@ index ba022d0420..b5d55d4d30 100644
      mkdir -p "$$BUILD_DIR/Public/common"
  
 -    PATH="$$PATH:$$MESON_DIR/meson-1.6.0:$$NINJA_DIR" sh $$BUILD_DIR/build-dav1d-bazel.sh $$BUILD_ARCH "$$BUILD_DIR"
-+    # Patch the meson crossfile to use the correct SDK path and cross-compiler
-+    XCODE_DEV_DIR="$$(xcode-select -p 2>/dev/null || echo /Applications/Xcode.app/Contents/Developer)"
-+    CROSS_CLANG="$$(xcrun --find clang 2>/dev/null || echo clang)"
-+    CROSS_CLANGPP="$$(xcrun --find clang++ 2>/dev/null || echo clang++)"
++    # Patch the meson crossfile to use the correct SDK path and cross-compiler.
++    XCODE_DEV_DIR="$${DEVELOPER_DIR:?DEVELOPER_DIR must be set}"
++    if [ "$$XCODE_DEV_DIR" = "$${XCODE_DEV_DIR#/}" ]; then
++      XCODE_DEV_DIR="$$(cd "$$XCODE_DEV_DIR" && pwd -P)"
++    fi
++    TOOLCHAIN_BIN="$$XCODE_DEV_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++    export PATH="$$TOOLCHAIN_BIN:$$PATH"
++    CROSS_CLANG="$$(xcrun --find clang 2>/dev/null || echo "$$TOOLCHAIN_BIN/clang")"
++    CROSS_CLANGPP="$$(xcrun --find clang++ 2>/dev/null || echo "$$TOOLCHAIN_BIN/clang++")"
 +    CROSS_AR="$$(xcrun --find ar 2>/dev/null || echo ar)"
 +    CROSS_STRIP="$$(xcrun --find strip 2>/dev/null || echo strip)"
 +    CROSSFILE="$$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneOS.meson"
@@ -1852,14 +1849,16 @@ index 6df4bd50fa..bc9764a446 100644
  
  set -e
  
-+# Resolve DEVELOPER_DIR to absolute path before any cd
-+if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++# Resolve DEVELOPER_DIR to an absolute path before any cd.
++if [ -z "${DEVELOPER_DIR:-}" ]; then
++  echo "DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# Ensure toolchain binaries are on PATH
-+if [ -n "${DEVELOPER_DIR:-}" ]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
++TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++export PATH="$TOOLCHAIN_BIN:$PATH"
 +
  ARCH="$1"
  
@@ -1867,7 +1866,7 @@ index 6df4bd50fa..bc9764a446 100644
 @@ -16,7 +25,7 @@ elif [ "$ARCH" = "sim_arm64" ]; then
      TARGET_CROSSFILE="$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneSimulator-custom.meson"
      cp "$BUILD_DIR/arm64-iPhoneSimulator.meson" "$TARGET_CROSSFILE"
-     custom_xcode_path="$(xcode-select -p)/"
+    custom_xcode_path="${DEVELOPER_DIR}/"
 -    sed -i '' "s|/Applications/Xcode.app/Contents/Developer/|$custom_xcode_path|g" "$TARGET_CROSSFILE"
 +    sed -i "s|/Applications/Xcode.app/Contents/Developer/|$custom_xcode_path|g" "$TARGET_CROSSFILE"
      CROSSFILE="../package/crossfiles/arm64-iPhoneSimulator-custom.meson"
@@ -1956,21 +1955,23 @@ index d63765f2af..acf1104e7f 100755
  
  set -e
  
-+# Resolve DEVELOPER_DIR to absolute path before any cd
-+if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++# Resolve DEVELOPER_DIR to an absolute path before any cd.
++if [ -z "${DEVELOPER_DIR:-}" ]; then
++  echo "DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# Ensure toolchain binaries are on PATH
-+if [ -n "${DEVELOPER_DIR:-}" ]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
++TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++export PATH="$TOOLCHAIN_BIN:$PATH"
 +
  ARCH="$1"
  
  SOURCE_DIR="$2"
 @@ -14,7 +23,7 @@ CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DJPEGXL_ENABLE_BE
  if [ "$ARCH" = "arm64" ]; then
-   IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
+  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
@@ -1980,10 +1981,11 @@ index d63765f2af..acf1104e7f 100755
 @@ -25,6 +34,9 @@ if [ "$ARCH" = "arm64" ]; then
    echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
-   echo "set(CMAKE_C_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang)" >> toolchain.cmake
-+  echo "set(CMAKE_CXX_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++)" >> toolchain.cmake
+  echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
++  echo "set(CMAKE_CXX_COMPILER $TOOLCHAIN_BIN/clang++)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_CXX_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
++  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
  
    cmake -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} $CMAKE_OPTIONS ../libjxl
    make
@@ -2106,7 +2108,7 @@ index 9040681907..eeaf891f83 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 +    # Resolve DEVELOPER_DIR to absolute path
 +    if [ -n "$${DEVELOPER_DIR:-}" ] && [ "$${DEVELOPER_DIR}" = "$${DEVELOPER_DIR#/}" ]; then
-+      export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd)"
++      export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd -P)"
      fi
 +    if [ -n "$${DEVELOPER_DIR:-}" ]; then
 +      export PATH="$$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$$PATH"
@@ -2179,7 +2181,7 @@ index 991aab1293..c1caef28af 100755
  
 +# Resolve DEVELOPER_DIR to absolute path before any cd
 +if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
 +# Ensure toolchain binaries are on PATH
 +if [ -n "${DEVELOPER_DIR:-}" ]; then
@@ -2252,7 +2254,7 @@ index b74836738d..75607b15f8 100644
      mkdir -p "$$BUILD_DIR/Public/mozjpeg"
  
 -    PATH="$$PATH:$$CMAKE_DIR/cmake-4.1.2-macos-universal/CMake.app/Contents/bin" sh $$BUILD_DIR/build-mozjpeg-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/mozjpeg" "$$BUILD_DIR"
-+    PATH="$$PATH:$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin" bash $$BUILD_DIR/build-mozjpeg-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/mozjpeg" "$$BUILD_DIR"
++    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" bash $$BUILD_DIR/build-mozjpeg-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/mozjpeg" "$$BUILD_DIR"
      """ +
      "\n".join([
          "cp -f \"$$BUILD_DIR/mozjpeg/{}\" \"$(location Public/mozjpeg/{})\"".format(header, header) for header in headers
@@ -2274,21 +2276,23 @@ index c115e26c97..da020b2a27 100755
  
  set -e
  
-+# Resolve DEVELOPER_DIR to absolute path before any cd
-+if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++# Resolve DEVELOPER_DIR to an absolute path before any cd.
++if [ -z "${DEVELOPER_DIR:-}" ]; then
++  echo "DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# Ensure toolchain binaries are on PATH
-+if [ -n "${DEVELOPER_DIR:-}" ]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
++TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++export PATH="$TOOLCHAIN_BIN:$PATH"
 +
  ARCH="$1"
  
  SOURCE_DIR="$2"
 @@ -10,7 +19,7 @@ BUILD_DIR=$(echo "$(cd "$(dirname "$3")"; pwd -P)/$(basename "$3")")
  if [ "$ARCH" = "arm64" ]; then
-   IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
+  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
@@ -2298,11 +2302,12 @@ index c115e26c97..da020b2a27 100755
 @@ -20,6 +29,7 @@ if [ "$ARCH" = "arm64" ]; then
    echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
-   echo "set(CMAKE_C_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang)" >> toolchain.cmake
+  echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
++  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
  
    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} -DPNG_SUPPORTED=FALSE -DENABLE_SHARED=FALSE -DWITH_JPEG8=1 -DBUILD=10000 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../mozjpeg
-   make
+   make jpeg-static turbojpeg-static
 diff --git a/third-party/ogg/BUILD b/third-party/ogg/BUILD
 index 1da3eaa02d..b2a6b6ec1e 100644
 --- a/third-party/ogg/BUILD
@@ -2381,14 +2386,16 @@ index bb79c9efc6..588f5d41a4 100755
  
  set -ex
  
-+# Resolve DEVELOPER_DIR to absolute path before any cd
-+if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++# Resolve DEVELOPER_DIR to an absolute path before any cd.
++if [ -z "${DEVELOPER_DIR:-}" ]; then
++  echo "DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# Ensure toolchain binaries are on PATH
-+if [ -n "${DEVELOPER_DIR:-}" ]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
++TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++export PATH="$TOOLCHAIN_BIN:$PATH"
 +
  ARCH="$1"
  BUILD_DIR=$(echo "$(cd "$(dirname "$2")"; pwd -P)/$(basename "$2")")
@@ -2494,7 +2501,7 @@ index a977bbb10d..f6d92586d2 100755
  
 +# Resolve DEVELOPER_DIR to absolute path before any cd
 +if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
 +# Ensure toolchain binaries are on PATH
 +if [ -n "${DEVELOPER_DIR:-}" ]; then
@@ -2532,12 +2539,12 @@ index a977bbb10d..f6d92586d2 100755
  cd ..
  
  if [ "$ARCH" = "arm64" ]; then
-   IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
+  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-arch arm64 --target=arm64-apple-ios13.0 -miphoneos-version-min=13.0"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
  elif [ "$ARCH" = "sim_arm64" ]; then
-   IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneSimulator.platform"
+  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneSimulator.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneSimulator*.sdk)
 -  export CFLAGS="-arch arm64 --target=arm64-apple-ios13.0-simulator -miphonesimulator-version-min=13.0"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0-simulator -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
@@ -2554,10 +2561,11 @@ index a977bbb10d..f6d92586d2 100755
 @@ -47,6 +71,9 @@ touch toolchain.cmake
  echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
  echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
- echo "set(CMAKE_C_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang)" >> toolchain.cmake
-+echo "set(CMAKE_CXX_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++)" >> toolchain.cmake
+ echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
++echo "set(CMAKE_CXX_COMPILER $TOOLCHAIN_BIN/clang++)" >> toolchain.cmake
 +echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +echo "set(CMAKE_CXX_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
++echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
  
  cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} ../td $options
 -make tde2e -j$(sysctl -n hw.ncpu)
@@ -2616,21 +2624,23 @@ index 7a3d123187..84b7fe8bc2 100755
  
  set -e
  
-+# Resolve DEVELOPER_DIR to absolute path before any cd
-+if [ -n "${DEVELOPER_DIR:-}" ] && [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
-+  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd)"
++# Resolve DEVELOPER_DIR to an absolute path before any cd.
++if [ -z "${DEVELOPER_DIR:-}" ]; then
++  echo "DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# Ensure toolchain binaries are on PATH
-+if [ -n "${DEVELOPER_DIR:-}" ]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [ "${DEVELOPER_DIR}" = "${DEVELOPER_DIR#/}" ]; then
++  export DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 +fi
++TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++export PATH="$TOOLCHAIN_BIN:$PATH"
 +
  ARCH="$1"
  
  SOURCE_DIR="$2"
 @@ -14,7 +23,7 @@ COMMON_ARGS="-DWEBP_LINK_STATIC=1 -DWEBP_BUILD_CWEBP=0 -DWEBP_BUILD_DWEBP=0 -DWE
  if [ "$ARCH" = "arm64" ]; then
-   IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
+  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
@@ -2640,7 +2650,7 @@ index 7a3d123187..84b7fe8bc2 100755
 @@ -24,6 +33,8 @@ if [ "$ARCH" = "arm64" ]; then
    echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
-   echo "set(CMAKE_C_COMPILER $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang)" >> toolchain.cmake
+  echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
  
