@@ -46,6 +46,10 @@ jobs:
           mkdir -p build-input
           cp -r build-system/example-configuration build-input/configuration-repository
           echo 'module(name = "build_configuration")' > build-input/configuration-repository/MODULE.bazel
+          cat >> build-input/configuration-repository/variables.bzl <<'BZLEOF'
+telegram_bazel_path = ""
+telegram_use_xcode_managed_codesigning = False
+BZLEOF
 
       - name: Build Telegram
         run: |
