@@ -1807,6 +1807,25 @@ index ba022d0420..b5d55d4d30 100644
      visibility = [
          "//visibility:public",
      ]
+diff --git a/third-party/dav1d/dav1d/meson.build b/third-party/dav1d/dav1d/meson.build
+index 4a114d1faa..f144322eb4 100644
+--- a/third-party/dav1d/dav1d/meson.build
++++ b/third-party/dav1d/dav1d/meson.build
+@@ -163,7 +163,13 @@ else
+         have_clock_gettime = true
+     endif
+ 
+-    have_posix_memalign = cc.has_function('posix_memalign', prefix : '#include <stdlib.h>', args : test_args)
++    if host_machine.system() in ['darwin', 'ios', 'tvos']
++        # Apple SDKs declare posix_memalign in malloc/_malloc.h.
++        # Cross-compiling from Linux can mis-detect it, so trust platform availability.
++        have_posix_memalign = true
++    else
++        have_posix_memalign = cc.has_function('posix_memalign', prefix : '#include <stdlib.h>', args : test_args)
++    endif
+     have_memalign = cc.has_function('memalign', prefix : '#include <malloc.h>', args : test_args)
+     have_aligned_alloc = cc.has_function('aligned_alloc', prefix : '#include <stdlib.h>', args : test_args)
+ endif
 diff --git a/third-party/dav1d/build-dav1d-bazel.sh b/third-party/dav1d/build-dav1d-bazel.sh
 index 6df4bd50fa..bc9764a446 100644
 --- a/third-party/dav1d/build-dav1d-bazel.sh
