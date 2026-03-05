@@ -69,7 +69,7 @@ index 0000000000..f7ee06693c
 @@ -0,0 +1 @@
 +9.0.0
 diff --git a/MODULE.bazel b/MODULE.bazel
-index 99b68b09ef..6f859f7d6a 100644
+index 99b68b09ef..604ec19acb 100644
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -1,8 +1,9 @@
@@ -84,7 +84,7 @@ index 99b68b09ef..6f859f7d6a 100644
  
  bazel_dep(name = "rules_xcodeproj")
  local_path_override(
-@@ -10,10 +11,17 @@ local_path_override(
+@@ -10,10 +11,16 @@ local_path_override(
      path = "./build-system/bazel-rules/rules_xcodeproj",
  )
  
@@ -98,14 +98,13 @@ index 99b68b09ef..6f859f7d6a 100644
 +    commit = "d930c4c6eaeed91c8275604a428407d123a85216",
 +    patches = [
 +        "//patches:rules_apple_no_exec_platform_constraint.patch",
-+        "//patches:rules_apple_bazel9_compat.patch",
 +        "//patches:rules_apple_create_simulator_action.patch",
 +    ],
 +    patch_strip = 1,
  )
  
  bazel_dep(name = "rules_swift", repo_name = "build_bazel_rules_swift")
-@@ -28,10 +36,45 @@ local_path_override(
+@@ -28,10 +35,45 @@ local_path_override(
      path = "./build-system/bazel-rules/apple_support",
  )
  
@@ -153,7 +152,7 @@ index 99b68b09ef..6f859f7d6a 100644
  )
  
  http_file(
-@@ -41,9 +84,9 @@ http_file(
+@@ -41,9 +83,9 @@ http_file(
  )
  
  http_file(
@@ -390,23 +389,6 @@ index 0000000000..d518110449
 +++ b/patches/BUILD
 @@ -0,0 +1 @@
 +exports_files(glob(["*.patch"]))
-diff --git a/patches/rules_apple_bazel9_compat.patch b/patches/rules_apple_bazel9_compat.patch
-new file mode 100644
-index 0000000000..aac4ea34d9
---- /dev/null
-+++ b/patches/rules_apple_bazel9_compat.patch
-@@ -0,0 +1,11 @@
-+--- a/apple/internal/platform_support.bzl
-++++ b/apple/internal/platform_support.bzl
-+@@ -93,7 +93,7 @@
-+       A struct representing the collected platform information.
-+     """
-+     platform_type_attr = getattr(apple_common.platform_type, platform_type_string)
-+-    platform = apple_fragment.multi_arch_platform(platform_type_attr)
-++    platform = apple_fragment.single_arch_platform
-+
-+     if explicit_minimum_os:
-+         minimum_os = explicit_minimum_os
 diff --git a/patches/rules_apple_create_simulator_action.patch b/patches/rules_apple_create_simulator_action.patch
 new file mode 100644
 index 0000000000..fd14e312d2
