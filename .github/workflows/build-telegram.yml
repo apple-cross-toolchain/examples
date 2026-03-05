@@ -46,6 +46,7 @@ jobs:
           mkdir -p build-input
           cp -r build-system/example-configuration build-input/configuration-repository
           echo 'module(name = "build_configuration")' > build-input/configuration-repository/MODULE.bazel
+          echo '' >> build-input/configuration-repository/variables.bzl
           echo 'telegram_bazel_path = ""' >> build-input/configuration-repository/variables.bzl
           echo 'telegram_use_xcode_managed_codesigning = False' >> build-input/configuration-repository/variables.bzl
 
