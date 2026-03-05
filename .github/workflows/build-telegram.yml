@@ -36,6 +36,9 @@ jobs:
           printf '#!/bin/bash\nexit 0\n' | sudo tee /usr/local/bin/codesign /usr/local/bin/codesign_allocate > /dev/null
           sudo chmod +x /usr/local/bin/codesign /usr/local/bin/codesign_allocate
 
+          printf '#!/bin/bash\nTOOL=$1; shift\nif [[ -n "${DEVELOPER_DIR:-}" && -x "$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/$TOOL" ]]; then\n  exec "$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/$TOOL" "$@"\nfi\nexec "$TOOL" "$@"\n' | sudo tee /usr/local/bin/xcrun > /dev/null
+          sudo chmod +x /usr/local/bin/xcrun
+
           cat > ~/.netrc <<EOF
           machine api.github.com
           login ${{ secrets.SDKS_USER }}
