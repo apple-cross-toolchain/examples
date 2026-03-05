@@ -84,7 +84,7 @@ index 99b68b09ef..de61b9853b 100644
  
  bazel_dep(name = "rules_xcodeproj")
  local_path_override(
-@@ -28,10 +29,38 @@ local_path_override(
+@@ -28,10 +29,45 @@ local_path_override(
      path = "./build-system/bazel-rules/apple_support",
  )
  
@@ -93,6 +93,13 @@ index 99b68b09ef..de61b9853b 100644
 +    module_name = "rules_applecross",
 +    remote = "https://github.com/apple-cross-toolchain/rules_applecross.git",
 +    commit = "0dc22090f8d156343bb72f9c35aa3ec3ae44aaf6",
++)
++
++bazel_dep(name = "xctestrunner", version = "0.0.1")
++git_override(
++    module_name = "xctestrunner",
++    remote = "https://github.com/apple-cross-toolchain/xctestrunner-bash.git",
++    commit = "9548d93f29a2a93315d7a0458622682c0f76e6fe",
 +)
 +
 +bazel_dep(name = "rules_cc", version = "0.2.17")
