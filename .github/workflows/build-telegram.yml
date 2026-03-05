@@ -28,7 +28,13 @@ jobs:
         run: |
           cd Telegram-iOS
           patch -p1 < ../examples/patches/telegram-ios-cross-compile.patch
-          find build-system/bazel-rules/rules_apple -name '*.bzl' -exec sed -i 's|/usr/bin/xcrun|xcrun|g' {} +
+
+      - name: Patch vendored rules_apple for Linux
+        run: |
+          cd Telegram-iOS/build-system/bazel-rules/rules_apple
+          RULES_APPLECROSS_COMMIT=$(grep -oP 'commit = "\K[^"]+' ../../../../MODULE.bazel | head -1)
+          curl -sL "https://raw.githubusercontent.com/apple-cross-toolchain/rules_applecross/${RULES_APPLECROSS_COMMIT}/patches/rules_apple_no_exec_platform_constraint.patch" | patch -p1 --fuzz=3 --no-backup-if-mismatch --force || true
+          curl -sL "https://raw.githubusercontent.com/apple-cross-toolchain/rules_applecross/${RULES_APPLECROSS_COMMIT}/patches/rules_apple_bazel9_compat.patch" | patch -p1 --fuzz=3 --no-backup-if-mismatch --force || true
 
       - name: Prepare build environment
         run: |
