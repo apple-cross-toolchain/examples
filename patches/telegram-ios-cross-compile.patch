@@ -2638,3 +2638,21 @@ index ecfef261b0..d3a3c88cbb 100644
      make -j $$core_count
      popd
  
+diff --git a/build-system/bazel-rules/apple_support/lib/apple_support.bzl b/build-system/bazel-rules/apple_support/lib/apple_support.bzl
+index f1fa0bd..2482cb8 100644
+--- a/build-system/bazel-rules/apple_support/lib/apple_support.bzl
++++ b/build-system/bazel-rules/apple_support/lib/apple_support.bzl
+@@ -199,6 +199,13 @@ def _kwargs_for_apple_platform(
+         apple_common.target_apple_env(xcode_config, apple_fragment.single_arch_platform),
+     )
+ 
++    # Add toolchain bin to PATH so tools like xcrun can be found during
++    # cross-compilation from Linux (where /usr/bin/xcrun doesn't exist).
++    developer_dir = merged_env.get("DEVELOPER_DIR", "")
++    if developer_dir:
++        toolchain_bin = developer_dir + "/Toolchains/XcodeDefault.xctoolchain/usr/bin"
++        merged_env["PATH"] = toolchain_bin + ":/usr/local/bin:/usr/bin:/bin"
++
+     merged_execution_requirements = {}
+     original_execution_requirements = processed_args.get("execution_requirements")
+     if original_execution_requirements:
