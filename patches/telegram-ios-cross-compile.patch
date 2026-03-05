@@ -92,7 +92,7 @@ index 99b68b09ef..de61b9853b 100644
 +git_override(
 +    module_name = "rules_applecross",
 +    remote = "https://github.com/apple-cross-toolchain/rules_applecross.git",
-+    commit = "0dc2209b8f6efc4bc20d39ee5eb5acdc4bce3b35",
++    commit = "0dc22090f8d156343bb72f9c35aa3ec3ae44aaf6",
 +)
 +
 +bazel_dep(name = "rules_cc", version = "0.2.17")
