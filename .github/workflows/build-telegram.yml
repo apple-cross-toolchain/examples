@@ -17,17 +17,9 @@ jobs:
 
       - name: Clone Telegram-iOS
         run: |
-          git init Telegram-iOS
-          cd Telegram-iOS
-          git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
-          git fetch --depth 1 origin 7504a0f92694a3ccbb544e05f97304f8d0891ba9
-          git checkout FETCH_HEAD
-          git submodule update --init --recursive
-
-      - name: Apply cross-compilation patch
-        run: |
-          cd Telegram-iOS
-          patch -p1 < ../examples/patches/telegram-ios-cross-compile.patch
+          git clone --depth 1 --recursive --shallow-submodules \
+            -b rules_applecross \
+            https://github.com/apple-cross-toolchain/Telegram-iOS.git
 
       - name: Prepare build environment
         run: |

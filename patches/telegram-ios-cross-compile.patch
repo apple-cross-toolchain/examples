@@ -2290,7 +2290,7 @@ index 9040681907..eeaf891f83 100644
  
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
-@@ -76,7 +74,42 @@ genrule(
+@@ -76,7 +74,50 @@ genrule(
  
      mkdir -p "$$BUILD_DIR/Public/libvpx"
  
@@ -2310,6 +2310,14 @@ index 9040681907..eeaf891f83 100644
 +    t = fh.read()
 +t = t.replace('-arch $${toolchain%%-*}', '--target=arm64-apple-ios13.0')
 +t = t.replace('-arch $${tgt_isa}', '--target=arm64-apple-ios13.0')
++t = t.replace('            CXX="$$($${XCRUN_FIND} clang++)"', '            CXX="$${CXX:-$$($${XCRUN_FIND} clang++)}"')
++t = t.replace('            CC="$$($${XCRUN_FIND} clang)"', '            CC="$${CC:-$$($${XCRUN_FIND} clang)}"')
++t = t.replace('            AR="$$($${XCRUN_FIND} ar)"', '            AR="$${AR:-$$($${XCRUN_FIND} ar)}"')
++t = t.replace('            AS="$$($${XCRUN_FIND} as)"', '            AS="$${AS:-$$($${XCRUN_FIND} as)}"')
++t = t.replace('            STRIP="$$($${XCRUN_FIND} strip)"', '            STRIP="$${STRIP:-$$($${XCRUN_FIND} strip)}"')
++t = t.replace('            NM="$$($${XCRUN_FIND} nm)"', '            NM="$${NM:-$$($${XCRUN_FIND} nm)}"')
++t = t.replace('            RANLIB="$$($${XCRUN_FIND} ranlib)"', '            RANLIB="$${RANLIB:-$$($${XCRUN_FIND} ranlib)}"')
++t = t.replace('            LD="$${CXX:-$$($${XCRUN_FIND} ld)}"', '            LD="$${LD:-$${CXX:-$$($${XCRUN_FIND} ld)}}"')
 +# Disable bitcode (ld64 lacks libxar support)
 +import re
 +t = re.sub(r'check_add_[a-z]+flags -fembed-bitcode', 'true', t)
@@ -2321,9 +2329,9 @@ index 9040681907..eeaf891f83 100644
 +    # Set cross-compilation tools
 +    export CC="$$(xcrun --find clang 2>/dev/null || echo clang) --target=$$CLANG_TARGET"
 +    export CXX="$$(xcrun --find clang++ 2>/dev/null || echo clang++) --target=$$CLANG_TARGET"
++    export LD="$$(xcrun --find clang++ 2>/dev/null || echo clang++) --target=$$CLANG_TARGET"
 +    export AR="$$(xcrun --find ar 2>/dev/null || echo ar)"
 +    export AS="$$(xcrun --find as 2>/dev/null || echo as)"
-+    export LD="$$(xcrun --find ld 2>/dev/null || echo ld)"
 +
 +    # Suppress -Werror for overriding-option (--target vs -miphoneos-version-min)
 +    export CFLAGS="-Wno-error=overriding-option"
@@ -2334,7 +2342,7 @@ index 9040681907..eeaf891f83 100644
      """ +
      "\n".join([
          "cp -f \"$$BUILD_DIR/VPX.framework/Headers/vpx/{}\" \"$(location Public/vpx/{})\"".format(header, header) for header in headers
-@@ -91,6 +124,7 @@ genrule(
+@@ -91,6 +132,7 @@ genrule(
      ["Public/vpx/lib{}.a".format(x) for x in libs],
      tools = [
          "//third-party/yasm:yasm.tar",
