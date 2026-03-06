@@ -2619,7 +2619,8 @@ index bb79c9efc6..588f5d41a4 100755
 +  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE ${MIN_VERSION_FLAG} -L${OUTPUTDIR}/lib -isysroot ${SDK_PATH}" \
 +  CFLAGS="$CFLAGS ${OPT_CFLAGS} -fPIE ${MIN_VERSION_FLAG} -I${OUTPUTDIR}/include -isysroot ${SDK_PATH}" \
  
-  make -j
+ make -j
+ make install
 diff --git a/third-party/opusfile/BUILD b/third-party/opusfile/BUILD
 index 0e62d353df..a8b0434ba8 100644
 --- a/third-party/opusfile/BUILD
