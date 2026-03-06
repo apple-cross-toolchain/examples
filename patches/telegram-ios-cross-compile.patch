@@ -5,19 +5,19 @@ index 1ce9174344..3b510730ed 100644
 @@ -1,18 +1,35 @@
 -build --action_env=ZERO_AR_DATE=1
 +startup --host_jvm_args=-Xmx12g
- 
+
 -build --apple_platform_type=ios
 -build --enable_platform_specific_config
 -build --apple_crosstool_top=@local_config_apple_cc//:toolchain
 -build --crosstool_top=@local_config_apple_cc//:toolchain
 -build --host_crosstool_top=@local_config_apple_cc//:toolchain
 +build --action_env=ZERO_AR_DATE=1
- 
+
 -build --per_file_copt=".*\.m$","@-fno-objc-msgsend-selector-stubs"
 -build --per_file_copt=".*\.mm$","@-fno-objc-msgsend-selector-stubs"
 +build --define=telegramVersion=11.0
 +build --define=buildNumber=100000
- 
+
 +build --apple_platform_type=ios
 +build --ios_multi_cpus=arm64
 +
@@ -44,12 +44,12 @@ index 1ce9174344..3b510730ed 100644
  build --features=swift.enable_vfsoverlays
 +build --features=disable_legacy_signing
  build:dbg --features=swift.emit_swiftsourceinfo
- 
+
  build --strategy=Genrule=standalone
 @@ -22,11 +39,11 @@ build --strategy=SwiftCompile=worker
- 
+
  #common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
- 
+
 -# SourceKit BSP: Swift indexing features
 -common --features=swift.index_while_building
 -common --features=swift.use_global_index_store
@@ -60,7 +60,7 @@ index 1ce9174344..3b510730ed 100644
 +#common --features=swift.use_global_index_store
 +#common --features=swift.use_global_module_cache
 +#common --features=oso_prefix_is_pwd
- 
+
  # SourceKit BSP: Index build config (used for background indexing)
  common:index_build --experimental_convenience_symlinks=ignore
 diff --git a/.bazelversion b/.bazelversion
@@ -76,20 +76,20 @@ index 99b68b09ef..006c8dd942 100644
 +++ b/MODULE.bazel
 @@ -1,8 +1,9 @@
  http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
- 
+
  bazel_dep(name = "bazel_features", version = "1.33.0")
 -bazel_dep(name = "bazel_skylib", version = "1.8.1")
 -bazel_dep(name = "platforms", version = "0.0.11")
 +bazel_dep(name = "bazel_skylib", version = "1.8.2")
 +bazel_dep(name = "platforms", version = "1.0.0")
 +bazel_dep(name = "rules_shell", version = "0.4.1")
- 
+
  bazel_dep(name = "rules_xcodeproj")
  local_path_override(
 @@ -10,10 +11,17 @@ local_path_override(
      path = "./build-system/bazel-rules/rules_xcodeproj",
  )
- 
+
 -bazel_dep(name = "rules_apple", repo_name = "build_bazel_rules_apple")
 -local_path_override(
 +bazel_dep(name = "rules_apple", version = "4.3.3", repo_name = "build_bazel_rules_apple")
@@ -105,12 +105,12 @@ index 99b68b09ef..006c8dd942 100644
 +    ],
 +    patch_strip = 1,
  )
- 
+
  bazel_dep(name = "rules_swift", repo_name = "build_bazel_rules_swift")
 @@ -28,10 +36,45 @@ local_path_override(
      path = "./build-system/bazel-rules/apple_support",
  )
- 
+
 +bazel_dep(name = "rules_applecross")
 +git_override(
 +    module_name = "rules_applecross",
@@ -153,11 +153,11 @@ index 99b68b09ef..006c8dd942 100644
 +    urls = ["https://github.com/Kitware/CMake/releases/download/v4.1.2/cmake-4.1.2-linux-x86_64.tar.gz"],
 +    sha256 = "773cc679c3a7395413bd096523f8e5d6c39f8718af4e12eb4e4195f72f35e4ab",
  )
- 
+
  http_file(
 @@ -41,9 +84,9 @@ http_file(
  )
- 
+
  http_file(
 -    name = "ninja-mac_zip",
 -    urls = ["https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-mac.zip"],
@@ -166,7 +166,7 @@ index 99b68b09ef..006c8dd942 100644
 +    urls = ["https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip"],
 +    sha256 = "6f98805688d19672bd699fbbfa2c2cf0fc054ac3df1f0e6a47664d963d530255",
  )
- 
+
  http_file(
 @@ -60,7 +103,7 @@ provisioning_profile_repository = use_extension("@build_bazel_rules_apple//apple
  bazel_dep(name = "build_configuration")
@@ -175,7 +175,7 @@ index 99b68b09ef..006c8dd942 100644
 -    path = "./build-input/configuration-repository",
 +    path = "./build-system/example-configuration",
  )
- 
+
  bazel_dep(name = "sourcekit_bazel_bsp", version = "0.7.1")
 diff --git a/Telegram/BUILD b/Telegram/BUILD
 index 7eff2fc281..016b26dee1 100644
@@ -199,7 +199,7 @@ index 7eff2fc281..016b26dee1 100644
 @@ -1279,10 +1281,10 @@ plist_fragment(
      )
  )
- 
+
 -swift_intent_library(
 +swift_library(
      name = "GeneratedSources",
@@ -208,7 +208,7 @@ index 7eff2fc281..016b26dee1 100644
 +    srcs = ["SiriIntents/GeneratedIntentTypes.swift"],
      visibility = ["//visibility:public"],
  )
- 
+
 @@ -1297,6 +1299,8 @@ swift_library(
      module_name = "IntentsExtensionLib",
      srcs = glob([
@@ -355,7 +355,7 @@ index 15c28377d8..8b1be218ec 100644
 +++ b/Tests/Common/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  filegroup(
      name = "LaunchScreen",
 diff --git a/Tests/LottieMetalTest/QOILoader/BUILD b/Tests/LottieMetalTest/QOILoader/BUILD
@@ -365,7 +365,7 @@ index 0c3f6ac18e..3fb2a71e65 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
- 
+
  objc_library(
 diff --git a/Tests/LottieMetalTest/SoftwareLottieRenderer/BUILD b/Tests/LottieMetalTest/SoftwareLottieRenderer/BUILD
 index 9909820b33..b0124a39d7 100644
@@ -374,7 +374,7 @@ index 9909820b33..b0124a39d7 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
- 
+
  objc_library(
 diff --git a/Tests/LottieMetalTest/skia/BUILD b/Tests/LottieMetalTest/skia/BUILD
 index 540ec8688e..cbf38c0413 100644
@@ -392,7 +392,7 @@ index 25729fc4ee..5f94aa8baf 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
- 
+
  objc_library(
 diff --git a/build-system/example-configuration/MODULE.bazel b/build-system/example-configuration/MODULE.bazel
 new file mode 100644
@@ -443,8 +443,8 @@ index 0000000000..06a4238ec4
 ++    if "CFBundleIcons~ipad" not in plist_data:
 ++      plist_data["CFBundleIcons~ipad"] = {}
 +     plist_data["CFBundleIcons~ipad"]["CFBundleAlternateIcons"] = alticons_data
-+ 
-+ 
++
++
 diff --git a/patches/rules_apple_create_simulator_action.patch b/patches/rules_apple_create_simulator_action.patch
 new file mode 100644
 index 0000000000..fd14e312d2
@@ -487,28 +487,117 @@ index 0000000000..fd14e312d2
 +         ),
 diff --git a/patches/rules_apple_no_exec_platform_constraint.patch b/patches/rules_apple_no_exec_platform_constraint.patch
 new file mode 100644
-index 0000000000..3d40cc5695
+index 0000000000..1111111111
 --- /dev/null
 +++ b/patches/rules_apple_no_exec_platform_constraint.patch
-@@ -0,0 +1,327 @@
+@@ -0,0 +1,562 @@
++diff --git a/apple/BUILD b/apple/BUILD
++index a4cfdc3..69a1bd8 100644
++--- a/apple/BUILD
+++++ b/apple/BUILD
++@@ -6,6 +6,19 @@ package(default_visibility = ["//visibility:public"])
++
++ licenses(["notice"])
++
+++# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
+++# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
+++#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
+++label_flag(
+++    name = "sdk_tool_files",
+++    build_setting_default = ":_empty_sdk_tool_files",
+++)
+++
+++filegroup(
+++    name = "_empty_sdk_tool_files",
+++    srcs = [],
+++)
+++
++ # Create a set of public config_settings that can be used in select()s.
++ [
++     alias(
++diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
++index 541c32f..be396b3 100644
++--- a/apple/internal/apple_toolchains.bzl
+++++ b/apple/internal/apple_toolchains.bzl
++@@ -65,6 +65,10 @@ and zipped as a cacheable artifact.
++         "main_thread_checker_tool": """\
++ The files_to_run for a tool to find libMainThreadChecker.dylib linked to a
++ binary.
+++""",
+++        "sdk_tool_files": """\
+++Additional Apple SDK/toolchain files that must be present in action sandboxes
+++for helper tools such as plisttool and plutil.
++ """,
++         "plisttool": """\
++ The files_to_run for a tool to perform plist operations such as variable
++@@ -123,6 +127,10 @@ for deterministic JSON handling.
++ def _shared_attrs():
++     """Private attributes on every rule to provide access to bundling tools and other file deps."""
++     return {
+++        "_sdk_tool_files": attr.label(
+++            default = Label("//apple:sdk_tool_files"),
+++            allow_files = True,
+++        ),
++         "_mac_toolchain": attr.label(
++             default = Label("//apple/internal:mac_tools_toolchain"),
++             providers = [[AppleMacToolsToolchainInfo]],
++@@ -148,6 +156,7 @@ def _apple_mac_tools_toolchain_impl(ctx):
++             main_thread_checker_tool = ctx.attr.main_thread_checker_tool.files_to_run,
++             environment_plist_tool = ctx.attr.environment_plist_tool.files_to_run,
++             imported_dynamic_framework_processor = ctx.attr.imported_dynamic_framework_processor.files_to_run,
+++            sdk_tool_files = ctx.files.sdk_tool_files,
++             plisttool = ctx.attr.plisttool.files_to_run,
++             provisioning_profile_tool = ctx.attr.provisioning_profile_tool.files_to_run,
++             swift_stdlib_tool = ctx.attr.swift_stdlib_tool.files_to_run,
++@@ -217,6 +226,14 @@ artifact.
++             executable = True,
++             doc = "A `File` referencing a tool to find libMainThreadChecker.dylib linked to a binary.",
++         ),
+++        "sdk_tool_files": attr.label(
+++            allow_files = True,
+++            default = Label("//apple:sdk_tool_files"),
+++            doc = """
+++Additional Apple SDK/toolchain files that must be available in action sandboxes
+++for helper tools such as plisttool and plutil.
+++""",
+++        ),
++         "plisttool": attr.label(
++             cfg = "target",
++             executable = True,
 +diff --git a/apple/internal/codesigning_support.bzl b/apple/internal/codesigning_support.bzl
 +index 61bbc88..092c6ad 100644
 +--- a/apple/internal/codesigning_support.bzl
 ++++ b/apple/internal/codesigning_support.bzl
 +@@ -121,7 +121,7 @@ def _codesign_args_for_path(
-+ 
++
 +     cmd_codesigning = [
 +         "--codesign",
 +-        "/usr/bin/codesign",
 ++        "codesign",
 +     ]
-+ 
++
 +     # Add quotes for sanitizing inputs when they're invoked directly from a shell script, for
 +diff --git a/apple/internal/entitlements_support.bzl b/apple/internal/entitlements_support.bzl
-+index 40f3d1f..1c0e447 100644
++index 40f3d1f..14f15d6 100644
 +--- a/apple/internal/entitlements_support.bzl
 ++++ b/apple/internal/entitlements_support.bzl
-+@@ -386,20 +386,10 @@ def _generate_der_entitlements(
++@@ -311,6 +311,7 @@ def _process_entitlements(
++         outputs = [final_entitlements],
++         platform_prerequisites = platform_prerequisites,
++         plisttool = apple_mac_toolchain_info.plisttool,
+++        sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
++     )
++
++     if platform_prerequisites.platform.is_device:
++@@ -350,6 +351,7 @@ def _process_entitlements(
++             outputs = [simulator_entitlements],
++             platform_prerequisites = platform_prerequisites,
++             plisttool = apple_mac_toolchain_info.plisttool,
+++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
++         )
++
++     return struct(
++@@ -386,20 +388,10 @@ def _generate_der_entitlements(
 +     der_entitlements = actions.declare_file(
 +         "entitlements/%s.der" % label_name,
 +     )
@@ -531,6 +620,46 @@ index 0000000000..3d40cc5695
 +         inputs = [entitlements],
 +         mnemonic = "ProcessDEREntitlements",
 +         outputs = [der_entitlements],
++diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
++index 8d429aa..f472276 100644
++--- a/apple/internal/environment_plist.bzl
+++++ b/apple/internal/environment_plist.bzl
++@@ -65,6 +65,7 @@ def _environment_plist_impl(ctx):
++     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
++     platform = platform_prerequisites.platform
++     sdk_version = platform_prerequisites.sdk_version
+++    sdk_tool_files = ctx.files._sdk_tool_files
++     apple_support.run(
++         actions = ctx.actions,
++         apple_fragment = platform_prerequisites.apple_fragment,
++@@ -75,6 +76,7 @@ def _environment_plist_impl(ctx):
++             ctx.outputs.plist.path,
++         ],
++         executable = environment_plist_tool,
+++        inputs = sdk_tool_files,
++         outputs = [ctx.outputs.plist],
++         xcode_config = platform_prerequisites.xcode_version_config,
++     )
++diff --git a/apple/internal/macos_binary_support.bzl b/apple/internal/macos_binary_support.bzl
++index 4aaa382..0489fb1 100644
++--- a/apple/internal/macos_binary_support.bzl
+++++ b/apple/internal/macos_binary_support.bzl
++@@ -161,6 +161,7 @@ def _macos_binary_infoplist_impl(ctx):
++         output_plist = merged_infoplist,
++         platform_prerequisites = platform_prerequisites,
++         plisttool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].plisttool,
+++        sdk_tool_files = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].sdk_tool_files,
++         rule_descriptor = rule_descriptor,
++         rule_label = rule_label,
++         version = ctx.attr.version,
++@@ -258,6 +259,7 @@ def _macos_command_line_launchdplist_impl(ctx):
++         output_plist = merged_launchdplist,
++         platform_prerequisites = platform_prerequisites,
++         plisttool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].plisttool,
+++        sdk_tool_files = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].sdk_tool_files,
++         rule_label = rule_label,
++     )
++
 +diff --git a/apple/internal/partials/apple_symbols_file.bzl b/apple/internal/partials/apple_symbols_file.bzl
 +index 1a5cfb3..b9e3e7f 100644
 +--- a/apple/internal/partials/apple_symbols_file.bzl
@@ -544,19 +673,176 @@ index 0000000000..3d40cc5695
 +                 "-noDaemon -arch all -symbolsPackageDir {output} {inputs} >/dev/null"
 +             ).format(
 +                 output = shell.quote(output.path),
++diff --git a/apple/internal/partials/resources.bzl b/apple/internal/partials/resources.bzl
++index c7af22a..55faddd 100644
++--- a/apple/internal/partials/resources.bzl
+++++ b/apple/internal/partials/resources.bzl
++@@ -352,6 +352,7 @@ def _resources_partial_impl(
++                 output_discriminator = output_discriminator,
++                 platform_prerequisites = platform_prerequisites,
++                 plisttool = apple_mac_toolchain_info.plisttool,
+++                sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
++                 rule_descriptor = rule_descriptor,
++                 rule_label = rule_label,
++                 version = version,
++diff --git a/apple/internal/partials/support/resources_support.bzl b/apple/internal/partials/support/resources_support.bzl
++index 00e45a0..185cbb1 100644
++--- a/apple/internal/partials/support/resources_support.bzl
+++++ b/apple/internal/partials/support/resources_support.bzl
++@@ -409,6 +409,7 @@ def _infoplists(
++             output_plist = out_plist,
++             platform_prerequisites = platform_prerequisites,
++             plisttool = apple_mac_toolchain_info.plisttool,
+++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
++             rule_label = rule_label,
++         )
++         return struct(
++@@ -536,6 +537,7 @@ def _mlmodels(
++ def _plists_and_strings(
++         *,
++         actions,
+++        apple_mac_toolchain_info,
++         files,
++         force_binary = False,
++         output_discriminator,
++@@ -551,6 +553,7 @@ def _plists_and_strings(
++
++     Args:
++         actions: The actions provider from `ctx.actions`.
+++        apple_mac_toolchain_info: `struct` of tools from the shared Apple toolchain.
++         files: The plist or string files to process.
++         force_binary: If true, files will be converted to binary independently of the compilation
++             mode.
++@@ -587,6 +590,7 @@ def _plists_and_strings(
++             input_file = file,
++             output_file = plist_file,
++             platform_prerequisites = platform_prerequisites,
+++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
++         )
++         plist_files.append(plist_file)
++
 +diff --git a/apple/internal/resource_actions/app_intents.bzl b/apple/internal/resource_actions/app_intents.bzl
 +index 4c36b3f..3c90e88 100644
 +--- a/apple/internal/resource_actions/app_intents.bzl
 ++++ b/apple/internal/resource_actions/app_intents.bzl
 +@@ -68,7 +68,7 @@ def generate_app_intents_metadata_bundle(
 +     )
-+ 
++
 +     args = actions.args()
 +-    args.add("/usr/bin/xcrun")
 ++    args.add("xcrun")
 +     args.add("appintentsmetadataprocessor")
-+ 
++
 +     # FB347041279: Though this is not required for --compile-time-extraction, which is the only
++diff --git a/apple/internal/resource_actions/plist.bzl b/apple/internal/resource_actions/plist.bzl
++index 35ea4fe..fb6144c 100644
++--- a/apple/internal/resource_actions/plist.bzl
+++++ b/apple/internal/resource_actions/plist.bzl
++@@ -47,7 +47,8 @@ def plisttool_action(
++         mnemonic = None,
++         outputs,
++         platform_prerequisites,
++-        plisttool):
+++        plisttool,
+++        sdk_tool_files = []):
++     """Registers an action that invokes `plisttool`.
++
++     This function is a low-level helper that simply invokes `plisttool` with the given arguments.
++@@ -62,19 +63,20 @@ def plisttool_action(
++       outputs: Any `File`s that should be treated as outputs of the underlying action.
++       platform_prerequisites: Struct containing information on the platform being targeted.
++       plisttool: A files_to_run for the plist tool.
+++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool's subprocesses.
++     """
++     apple_support.run(
++         actions = actions,
++         apple_fragment = platform_prerequisites.apple_fragment,
++         arguments = [control_file.path],
++         executable = plisttool,
++-        inputs = inputs + [control_file],
+++        inputs = inputs + [control_file] + sdk_tool_files,
++         mnemonic = mnemonic,
++         outputs = outputs,
++         xcode_config = platform_prerequisites.xcode_version_config,
++     )
++
++-def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
+++def compile_plist(*, actions, input_file, output_file, platform_prerequisites, sdk_tool_files = []):
++     """Creates an action that compiles plist and strings files.
++
++     Args:
++@@ -82,6 +84,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
++       input_file: The property list file that should be converted.
++       output_file: The file reference for the output plist.
++       platform_prerequisites: Struct containing information on the platform being targeted.
+++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plutil.
++     """
++     if input_file.basename.endswith(".strings"):
++         mnemonic = "CompileStrings"
++@@ -92,7 +95,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
++     # execute the version of plutil that takes the file directly. If the file is
++     # empty, it will echo an new line and then pipe it into plutil. We do this
++     # to handle empty files as plutil doesn't handle them very well.
++-    plutil_command = "plutil -convert binary1 -o %s --" % shell.quote(output_file.path)
+++    plutil_command = "\"$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/plutil\" -convert binary1 -o %s --" % shell.quote(output_file.path)
++     complete_command = ("if [[ -s {in_file} ]] ; then {plutil_command} {in_file} ; " +
++                         "elif [[ -f {in_file} ]] ; then echo | {plutil_command} - ; " +
++                         "else exit 1 ; " +
++@@ -104,7 +107,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
++         actions = actions,
++         apple_fragment = platform_prerequisites.apple_fragment,
++         command = complete_command,
++-        inputs = [input_file],
+++        inputs = [input_file] + sdk_tool_files,
++         mnemonic = mnemonic,
++         outputs = [output_file],
++         xcode_config = platform_prerequisites.xcode_version_config,
++@@ -120,6 +123,7 @@ def merge_resource_infoplists(
++         output_plist,
++         platform_prerequisites,
++         plisttool,
+++        sdk_tool_files = [],
++         rule_label):
++     """Merges a list of plist files for resource bundles with substitutions.
++
++@@ -133,6 +137,7 @@ def merge_resource_infoplists(
++       output_plist: The file reference for the output plist.
++       platform_prerequisites: Struct containing information on the platform being targeted.
++       plisttool: A files_to_run for the plist tool.
+++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool.
++       rule_label: The label of the target being analyzed.
++     """
++     product_name = paths.replace_extension(bundle_name_with_extension, "")
++@@ -179,6 +184,7 @@ def merge_resource_infoplists(
++         outputs = [output_plist],
++         platform_prerequisites = platform_prerequisites,
++         plisttool = plisttool,
+++        sdk_tool_files = sdk_tool_files,
++     )
++
++ def merge_root_infoplists(
++@@ -200,6 +206,7 @@ def merge_root_infoplists(
++         output_pkginfo,
++         platform_prerequisites,
++         plisttool,
+++        sdk_tool_files = [],
++         rule_descriptor,
++         rule_label,
++         version,
++@@ -237,6 +244,7 @@ def merge_root_infoplists(
++       output_plist: The file reference for the merged output plist.
++       platform_prerequisites: Struct containing information on the platform being targeted.
++       plisttool: A files_to_run for the plist tool.
+++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool.
++       rule_descriptor: A rule descriptor for platform and product types from the rule context.
++       rule_label: The label of the target being analyzed.
++       version: A label referencing AppleBundleVersionInfo, if provided by the rule.
++@@ -391,4 +399,5 @@ def merge_root_infoplists(
++         outputs = output_files,
++         platform_prerequisites = platform_prerequisites,
++         plisttool = plisttool,
+++        sdk_tool_files = sdk_tool_files,
++     )
 +diff --git a/apple/internal/rule_factory.bzl b/apple/internal/rule_factory.bzl
 +index 87a642e..be0534c 100644
 +--- a/apple/internal/rule_factory.bzl
@@ -584,7 +870,7 @@ index 0000000000..3d40cc5695
 +-        },
 +         test = True,
 +     )
-+ 
++
 +diff --git a/apple/internal/templates/docc_preview.template.sh b/apple/internal/templates/docc_preview.template.sh
 +index 981af14..94fb06a 100644
 +--- a/apple/internal/templates/docc_preview.template.sh
@@ -608,53 +894,52 @@ index 0000000000..3d40cc5695
 + readonly BUNDLE_INFO_PLIST="${APP_DIR}/Contents/Info.plist"
 +-readonly BUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
 ++readonly BUNDLE_EXECUTABLE=$(PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
-+ 
++
 + # Launch the app binary
 + # Do *not* use exec here because we want the trap above to execute after the
 +diff --git a/tools/environment_plist/environment_plist.sh b/tools/environment_plist/environment_plist.sh
-+index 1dca56d..f52ec5b 100755
++index 1dca56d..1568a6d 100755
 +--- a/tools/environment_plist/environment_plist.sh
 ++++ b/tools/environment_plist/environment_plist.sh
-+@@ -26,6 +26,16 @@
-+ 
++@@ -26,6 +26,15 @@
++
 + set -eu
-+ 
-++# Resolve DEVELOPER_DIR via xcode-select if not already set.
++
 ++if [[ -z "${DEVELOPER_DIR:-}" ]]; then
-++  DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)"
+++  echo "environment_plist: DEVELOPER_DIR must be set" >&2
+++  exit 1
 ++fi
-++# When DEVELOPER_DIR is set, prepend the toolchain bin directory to PATH
-++# so that xcrun, PlistBuddy, plutil, sw_vers, etc. are found there.
-++if [[ -n "${DEVELOPER_DIR:-}" ]]; then
-++  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
+++if [[ "${DEVELOPER_DIR}" != /* ]]; then
+++  DEVELOPER_DIR="$(cd "${DEVELOPER_DIR}" && pwd -P)"
 ++fi
+++export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
 ++
 + while [[ $# > 1 ]]
 + do
 + key="$1"
-+@@ -47,7 +57,7 @@ shift
++@@ -47,7 +56,7 @@ shift
 + done
-+ 
++
 + set +e
 +-PLATFORM_DIR=$(/usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
 ++PLATFORM_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
 + XCRUN_EXITCODE=$?
 + set -e
 + if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
-+@@ -55,31 +65,32 @@ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
++@@ -55,31 +64,32 @@ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
 + and SDK version pair is not available."
 +   # Since this already failed, assume this is going to fail again. With
 +   # set -e, this will produce the appropriate stderr and error code.
 +-  /usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
 ++  xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
 + fi
-+ 
++
 + PLATFORM_PLIST="${PLATFORM_DIR}"/Info.plist
 ++SDK_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-path 2>/dev/null)
 + TEMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/bazel_environment.XXXXXX")
 + PLIST="${TEMPDIR}/env.plist"
 + trap 'rm -rf "${TEMPDIR}"' ERR EXIT
-+ 
++
 +-os_build=$(sw_vers -buildVersion)
 +-compiler=$(/usr/libexec/PlistBuddy -c "Print :DefaultProperties:DEFAULT_COMPILER" "${PLATFORM_PLIST}")
 +-xcodebuild_version_sdk_output=$(/usr/bin/xcrun xcodebuild -version -sdk "${PLATFORM}" 2>/dev/null)
@@ -684,16 +969,17 @@ index 0000000000..3d40cc5695
 + # Converts '7.1' -> 0710, and '7.1.1' -> 0711.
 +-xcode_version=$(/usr/bin/printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
 ++xcode_version=$(printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
-+ 
++
 +-/usr/libexec/PlistBuddy \
 ++PlistBuddy \
 +     -c "Add :DTPlatformBuild string ${platform_build:-""}" \
 +     -c "Add :DTSDKBuild string ${sdk_build:-""}" \
 +     -c "Add :DTPlatformVersion string ${platform_version:-""}" \
 +diff --git a/tools/plisttool/plisttool.py b/tools/plisttool/plisttool.py
++index 5aa2f93..7fb9d64 100644
 +--- a/tools/plisttool/plisttool.py
 ++++ b/tools/plisttool/plisttool.py
-+@@ -147,9 +147,27 @@ import copy
++@@ -147,11 +147,30 @@ import copy
 + import datetime
 + import json
 + import plistlib
@@ -701,110 +987,59 @@ index 0000000000..3d40cc5695
 + import re
 + import subprocess
 + import sys
-+ 
-+ 
++
++
 ++def _ensure_toolchain_path():
-++  """Prepend toolchain bin to PATH using xcode-select if available."""
-++  try:
-++    result = subprocess.run(
-++      ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
-++    )
-++    if result.returncode == 0:
-++      dev_dir = result.stdout.strip()
-++      bin_dir = os.path.join(dev_dir, "Toolchains",
-++                             "XcodeDefault.xctoolchain", "usr", "bin")
-++      if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
-++        os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
-++  except Exception:
-++    pass
+++  """Prepend the bundled Apple toolchain bin directory to PATH."""
+++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
+++  if not dev_dir:
+++    return
+++  if not os.path.isabs(dev_dir):
+++    dev_dir = os.path.abspath(dev_dir)
+++  dev_dir = os.path.realpath(dev_dir)
+++  bin_dir = os.path.join(
+++      dev_dir, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin"
+++  )
+++  path = os.environ.get("PATH", "")
+++  path_entries = path.split(":") if path else []
+++  if os.path.isdir(bin_dir) and bin_dir not in path_entries:
+++    os.environ["PATH"] = ":".join([bin_dir] + path_entries)
 ++
 ++_ensure_toolchain_path()
 ++
 + # Format strings for errors that are raised, exposed here to the tests
++ # can validate against them.
++
 +diff --git a/tools/wrapper_common/execute.py b/tools/wrapper_common/execute.py
++index 6dbfcf2..45f3481 100644
 +--- a/tools/wrapper_common/execute.py
 ++++ b/tools/wrapper_common/execute.py
-+@@ -18,6 +18,24 @@ import os
-+ import re
++@@ -19,6 +19,25 @@ import re
 + import subprocess
 + import sys
-+ 
++
 ++
 ++def _ensure_toolchain_path():
-++  """Prepend toolchain bin to PATH using xcode-select if available."""
-++  try:
-++    result = subprocess.run(
-++      ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
-++    )
-++    if result.returncode == 0:
-++      dev_dir = result.stdout.strip()
-++      bin_dir = os.path.join(dev_dir, "Toolchains",
-++                             "XcodeDefault.xctoolchain", "usr", "bin")
-++      if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
-++        os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
-++  except Exception:
-++    pass
+++  """Prepend the bundled Apple toolchain bin directory to PATH."""
+++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
+++  if not dev_dir:
+++    return
+++  if not os.path.isabs(dev_dir):
+++    dev_dir = os.path.abspath(dev_dir)
+++  dev_dir = os.path.realpath(dev_dir)
+++  bin_dir = os.path.join(
+++      dev_dir, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin"
+++  )
+++  path = os.environ.get("PATH", "")
+++  path_entries = path.split(":") if path else []
+++  if os.path.isdir(bin_dir) and bin_dir not in path_entries:
+++    os.environ["PATH"] = ":".join([bin_dir] + path_entries)
 ++
 ++_ensure_toolchain_path()
 ++
 + # LINT.IfChange
 + _DEFAULT_TIMEOUT = 900
-+diff --git a/apple/BUILD b/apple/BUILD
-+--- a/apple/BUILD
-++++ b/apple/BUILD
-+@@ -5,6 +5,19 @@
-+ package(default_visibility = ["//visibility:public"])
-+ 
-+ licenses(["notice"])
-++
-++# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
-++# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
-++#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
-++label_flag(
-++    name = "sdk_tool_files",
-++    build_setting_default = ":_empty_sdk_tool_files",
-++)
-++
-++filegroup(
-++    name = "_empty_sdk_tool_files",
-++    srcs = [],
-++)
-+ 
-+ # Create a set of public config_settings that can be used in select()s.
-+ [
-+diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
-+--- a/apple/internal/apple_toolchains.bzl
-++++ b/apple/internal/apple_toolchains.bzl
-+@@ -119,6 +119,10 @@
-+ def _shared_attrs():
-+     """Private attributes on every rule to provide access to bundling tools and other file deps."""
-+     return {
-++        "_sdk_tool_files": attr.label(
-++            default = Label("//apple:sdk_tool_files"),
-++            allow_files = True,
-++        ),
-+         "_mac_toolchain": attr.label(
-+             default = Label("//apple/internal:mac_tools_toolchain"),
-+             providers = [[AppleMacToolsToolchainInfo]],
-+diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
-+--- a/apple/internal/environment_plist.bzl
-++++ b/apple/internal/environment_plist.bzl
-+@@ -65,6 +65,7 @@
-+     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
-+     platform = platform_prerequisites.platform
-+     sdk_version = platform_prerequisites.sdk_version
-++    sdk_tool_files = ctx.files._sdk_tool_files
-+     apple_support.run(
-+         actions = ctx.actions,
-+         apple_fragment = platform_prerequisites.apple_fragment,
-+@@ -75,6 +76,7 @@
-+             ctx.outputs.plist.path,
-+         ],
-+         executable = environment_plist_tool,
-++        inputs = sdk_tool_files,
-+         outputs = [ctx.outputs.plist],
-+         xcode_config = platform_prerequisites.xcode_version_config,
-+     )
++
 +diff --git a/tools/xctoolrunner/xctoolrunner.py b/tools/xctoolrunner/xctoolrunner.py
 +index 43937d3..40b5cb6 100644
 +--- a/tools/xctoolrunner/xctoolrunner.py
@@ -833,7 +1068,7 @@ index 3c935d1e30..a4a7978ad8 100644
 +++ b/submodules/AppBundle/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "AppBundle",
 diff --git a/submodules/AsyncDisplayKit/BUILD b/submodules/AsyncDisplayKit/BUILD
@@ -851,7 +1086,7 @@ index fb80ca4833..86d525290b 100644
 +++ b/submodules/BroadcastUploadHelpers/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "BroadcastUploadHelpers",
 diff --git a/submodules/BuildConfig/BUILD b/submodules/BuildConfig/BUILD
@@ -869,7 +1104,7 @@ index 850eca77fc..6c7e70f7d8 100644
 +++ b/submodules/BuildConfigExtra/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "BuildConfigExtra",
 diff --git a/submodules/ContactsHelper/BUILD b/submodules/ContactsHelper/BUILD
@@ -878,7 +1113,7 @@ index a1c8c19905..6ebc6acd97 100644
 +++ b/submodules/ContactsHelper/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ContactsHelper",
 diff --git a/submodules/Crc32/BUILD b/submodules/Crc32/BUILD
@@ -887,7 +1122,7 @@ index 6d662a3b13..073167e25c 100644
 +++ b/submodules/Crc32/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "Crc32",
 diff --git a/submodules/CryptoUtils/BUILD b/submodules/CryptoUtils/BUILD
@@ -896,7 +1131,7 @@ index da7b17b786..1b8539be65 100644
 +++ b/submodules/CryptoUtils/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "CryptoUtils",
 diff --git a/submodules/DeviceProximity/BUILD b/submodules/DeviceProximity/BUILD
@@ -905,7 +1140,7 @@ index ed246353de..bab2048723 100644
 +++ b/submodules/DeviceProximity/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "DeviceProximity",
 diff --git a/submodules/EncryptionKeyVisualization/Impl/BUILD b/submodules/EncryptionKeyVisualization/Impl/BUILD
@@ -914,7 +1149,7 @@ index b4cd316031..e83f03ef51 100644
 +++ b/submodules/EncryptionKeyVisualization/Impl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "EncryptionKeyVisualizationImpl",
 diff --git a/submodules/EncryptionProvider/BUILD b/submodules/EncryptionProvider/BUILD
@@ -923,7 +1158,7 @@ index 380a5eb390..3e6dabeff5 100644
 +++ b/submodules/EncryptionProvider/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "EncryptionProvider",
 diff --git a/submodules/FFMpegBinding/BUILD b/submodules/FFMpegBinding/BUILD
@@ -932,7 +1167,7 @@ index 70b8dbb350..68cb735c0e 100644
 +++ b/submodules/FFMpegBinding/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "FFMpegBinding",
 diff --git a/submodules/FastBlur/BUILD b/submodules/FastBlur/BUILD
@@ -941,7 +1176,7 @@ index 839f88d8c1..90cba117de 100644
 +++ b/submodules/FastBlur/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "FastBlur",
 diff --git a/submodules/GZip/BUILD b/submodules/GZip/BUILD
@@ -950,7 +1185,7 @@ index 070db3c3f3..5d3a967162 100644
 +++ b/submodules/GZip/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "GZip",
 diff --git a/submodules/LegacyComponents/BUILD b/submodules/LegacyComponents/BUILD
@@ -959,7 +1194,7 @@ index 4d2e8687da..c82884fead 100644
 +++ b/submodules/LegacyComponents/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  filegroup(
      name = "LegacyComponentsResources",
 @@ -40,7 +41,7 @@ objc_library(
@@ -976,14 +1211,14 @@ index 36fd423570..d4d1ed697f 100644
 --- a/submodules/LegacyComponents/Sources/NSInputStream+TL.m
 +++ b/submodules/LegacyComponents/Sources/NSInputStream+TL.m
 @@ -2,7 +2,9 @@
- 
+
  #import "LegacyComponentsInternal.h"
- 
+
 -#import <endian.h>
 +#if defined(__linux__)
 +#   import <endian.h>
 +#endif
- 
+
  static inline int roundUpInput(int numToRound, int multiple)
  {
 diff --git a/submodules/LegacyDataImport/Impl/BUILD b/submodules/LegacyDataImport/Impl/BUILD
@@ -992,7 +1227,7 @@ index 4bab57e0ce..cc1b0c3f70 100644
 +++ b/submodules/LegacyDataImport/Impl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "LegacyDataImportImpl",
 diff --git a/submodules/LottieCpp/BUILD b/submodules/LottieCpp/BUILD
@@ -1003,7 +1238,7 @@ index b8571c0c94..15d0e4b854 100644
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
- 
+
  objc_library(
 @@ -24,6 +26,8 @@ objc_library(
      ],
@@ -1031,7 +1266,7 @@ index e702972e52..b068ea8e8d 100644
 +        return !(*this == rhs);
 +    }
  };
- 
+
  Vector3D interpolate(
 diff --git a/submodules/MimeTypes/BUILD b/submodules/MimeTypes/BUILD
 index e4c7fb3d6a..7f6463131f 100644
@@ -1039,7 +1274,7 @@ index e4c7fb3d6a..7f6463131f 100644
 +++ b/submodules/MimeTypes/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MimeTypes",
 diff --git a/submodules/MonotonicTime/BUILD b/submodules/MonotonicTime/BUILD
@@ -1048,7 +1283,7 @@ index 075c8066c9..fbfc6993f2 100644
 +++ b/submodules/MonotonicTime/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MonotonicTime",
 diff --git a/submodules/MozjpegBinding/BUILD b/submodules/MozjpegBinding/BUILD
@@ -1057,7 +1292,7 @@ index 01efb01634..3c10e644e9 100644
 +++ b/submodules/MozjpegBinding/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MozjpegBinding",
 diff --git a/submodules/MtProtoKit/BUILD b/submodules/MtProtoKit/BUILD
@@ -1066,7 +1301,7 @@ index db9e8f2755..343ea15874 100644
 +++ b/submodules/MtProtoKit/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MtProtoKit",
 diff --git a/submodules/MtProtoKit/Sources/MTInputStream.m b/submodules/MtProtoKit/Sources/MTInputStream.m
@@ -1076,24 +1311,24 @@ index 509427debe..5cf46fd0c9 100644
 @@ -3,7 +3,7 @@
  #import <Foundation/Foundation.h>
  #import <MtProtoKit/MTLogging.h>
- 
+
 -#if TARGET_OS_IPHONE
 +#if defined(__linux__)
  #   import <endian.h>
  #endif
- 
+
 diff --git a/submodules/MtProtoKit/Sources/MTOutputStream.m b/submodules/MtProtoKit/Sources/MTOutputStream.m
 index dba14a26b7..c7f19b1d08 100644
 --- a/submodules/MtProtoKit/Sources/MTOutputStream.m
 +++ b/submodules/MtProtoKit/Sources/MTOutputStream.m
 @@ -1,6 +1,6 @@
  #import <MtProtoKit/MTOutputStream.h>
- 
+
 -#if TARGET_OS_IPHONE
 +#if defined(__linux__)
  #   import <endian.h>
  #endif
- 
+
 diff --git a/submodules/MtProtoKit/Sources/MTTcpConnection.m b/submodules/MtProtoKit/Sources/MTTcpConnection.m
 index ca07b8f467..cd1553d318 100644
 --- a/submodules/MtProtoKit/Sources/MTTcpConnection.m
@@ -1105,7 +1340,7 @@ index ca07b8f467..cd1553d318 100644
 -#import <CommonCrypto/CommonHMac.h>
 +#import <CommonCrypto/CommonHMAC.h>
  #import <Security/SecRandom.h>
- 
+
  #import <MtProtoKit/MTInternalId.h>
 diff --git a/submodules/MurMurHash32/BUILD b/submodules/MurMurHash32/BUILD
 index 6a24f18424..80f4a9a2c3 100644
@@ -1113,7 +1348,7 @@ index 6a24f18424..80f4a9a2c3 100644
 +++ b/submodules/MurMurHash32/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MurMurHash32",
 diff --git a/submodules/NetworkLogging/BUILD b/submodules/NetworkLogging/BUILD
@@ -1122,7 +1357,7 @@ index 9996f41a3c..cd3bb9f71f 100644
 +++ b/submodules/NetworkLogging/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "NetworkLogging",
 diff --git a/submodules/NumberPluralizationForm/BUILD b/submodules/NumberPluralizationForm/BUILD
@@ -1131,7 +1366,7 @@ index 4a690328d0..d3e26a4a23 100644
 +++ b/submodules/NumberPluralizationForm/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "NumberPluralizationForm",
 diff --git a/submodules/ObjCRuntimeUtils/BUILD b/submodules/ObjCRuntimeUtils/BUILD
@@ -1140,7 +1375,7 @@ index f692527feb..f090e8b6a1 100644
 +++ b/submodules/ObjCRuntimeUtils/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ObjCRuntimeUtils",
 diff --git a/submodules/OpenSSLEncryptionProvider/BUILD b/submodules/OpenSSLEncryptionProvider/BUILD
@@ -1149,7 +1384,7 @@ index cd745b149e..b23eb50344 100644
 +++ b/submodules/OpenSSLEncryptionProvider/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "OpenSSLEncryptionProvider",
 diff --git a/submodules/OpusBinding/BUILD b/submodules/OpusBinding/BUILD
@@ -1158,7 +1393,7 @@ index f65be5a84a..8b61feb9b2 100644
 +++ b/submodules/OpusBinding/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "OpusBinding",
 diff --git a/submodules/OverlayStatusController/Impl/BUILD b/submodules/OverlayStatusController/Impl/BUILD
@@ -1167,7 +1402,7 @@ index 7f782462d8..5b7447cbe6 100644
 +++ b/submodules/OverlayStatusController/Impl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "OverlayStatusControllerImpl",
 diff --git a/submodules/PKCS/BUILD b/submodules/PKCS/BUILD
@@ -1176,7 +1411,7 @@ index a781fe2224..642a5d70b9 100644
 +++ b/submodules/PKCS/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "PKCS",
 diff --git a/submodules/RMIntro/BUILD b/submodules/RMIntro/BUILD
@@ -1186,7 +1421,7 @@ index aa3b3ca48a..c806575916 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("//build-system/bazel-utils:unique_directories.bzl", "unique_directories")
- 
+
  private_headers = glob([
 diff --git a/submodules/RaiseToListen/Impl/BUILD b/submodules/RaiseToListen/Impl/BUILD
 index 8bdcffdd65..7cf88a578f 100644
@@ -1194,7 +1429,7 @@ index 8bdcffdd65..7cf88a578f 100644
 +++ b/submodules/RaiseToListen/Impl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "RaiseToListenImpl",
 diff --git a/submodules/Reachability/LegacyReachability/BUILD b/submodules/Reachability/LegacyReachability/BUILD
@@ -1203,7 +1438,7 @@ index f9f9023871..f99cbae647 100644
 +++ b/submodules/Reachability/LegacyReachability/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "LegacyReachability",
 diff --git a/submodules/RingBuffer/BUILD b/submodules/RingBuffer/BUILD
@@ -1212,7 +1447,7 @@ index f9ad619740..8537e74e29 100644
 +++ b/submodules/RingBuffer/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "RingBuffer",
 diff --git a/submodules/SSignalKit/SSignalKit/BUILD b/submodules/SSignalKit/SSignalKit/BUILD
@@ -1221,7 +1456,7 @@ index 98f1b6f95c..f89ce251af 100644
 +++ b/submodules/SSignalKit/SSignalKit/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "SSignalKit",
 diff --git a/submodules/ShareItems/Impl/BUILD b/submodules/ShareItems/Impl/BUILD
@@ -1230,7 +1465,7 @@ index 21b141321f..ff603d3743 100644
 +++ b/submodules/ShareItems/Impl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ShareItemsImpl",
 diff --git a/submodules/StringTransliteration/BUILD b/submodules/StringTransliteration/BUILD
@@ -1239,7 +1474,7 @@ index 5d70f552a5..358429bd64 100644
 +++ b/submodules/StringTransliteration/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "StringTransliteration",
 diff --git a/submodules/Stripe/BUILD b/submodules/Stripe/BUILD
@@ -1248,7 +1483,7 @@ index f064ddd543..83f3de838d 100644
 +++ b/submodules/Stripe/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "Stripe",
 diff --git a/submodules/Sunrise/BUILD b/submodules/Sunrise/BUILD
@@ -1257,7 +1492,7 @@ index 97779bda4e..4325e2eed9 100644
 +++ b/submodules/Sunrise/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "Sunrise",
 diff --git a/submodules/Svg/BUILD b/submodules/Svg/BUILD
@@ -1266,7 +1501,7 @@ index eba76650f4..f768778a38 100644
 +++ b/submodules/Svg/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "Svg",
 diff --git a/submodules/TelegramCallsUI/CallsEmoji/BUILD b/submodules/TelegramCallsUI/CallsEmoji/BUILD
@@ -1275,7 +1510,7 @@ index d6a2ce8cdb..cec4208503 100644
 +++ b/submodules/TelegramCallsUI/CallsEmoji/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "CallsEmoji",
 diff --git a/submodules/TelegramUI/Components/AnimationCache/ImageDCT/BUILD b/submodules/TelegramUI/Components/AnimationCache/ImageDCT/BUILD
@@ -1284,7 +1519,7 @@ index fdf548af65..d3549a1657 100644
 +++ b/submodules/TelegramUI/Components/AnimationCache/ImageDCT/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ImageDCT",
 diff --git a/submodules/TelegramUI/Components/Chat/ChatInputTextNode/ChatInputTextViewImpl/BUILD b/submodules/TelegramUI/Components/Chat/ChatInputTextNode/ChatInputTextViewImpl/BUILD
@@ -1293,7 +1528,7 @@ index 7f5eebb851..4d6f8ba8cb 100644
 +++ b/submodules/TelegramUI/Components/Chat/ChatInputTextNode/ChatInputTextViewImpl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ChatInputTextViewImpl",
 diff --git a/submodules/TelegramUI/Components/MeshTransform/MeshTransformApi/BUILD b/submodules/TelegramUI/Components/MeshTransform/MeshTransformApi/BUILD
@@ -1302,7 +1537,7 @@ index f1f9763895..d63d7218a5 100644
 +++ b/submodules/TelegramUI/Components/MeshTransform/MeshTransformApi/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "MeshTransformApi",
 diff --git a/submodules/TelegramUI/Components/SpaceWarpView/STCMeshView/BUILD b/submodules/TelegramUI/Components/SpaceWarpView/STCMeshView/BUILD
@@ -1311,7 +1546,7 @@ index edab36b4b8..b62b07b83b 100644
 +++ b/submodules/TelegramUI/Components/SpaceWarpView/STCMeshView/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "STCMeshView",
 diff --git a/submodules/TgVoipWebrtc/BUILD b/submodules/TgVoipWebrtc/BUILD
@@ -1321,7 +1556,7 @@ index 14cc452523..84a7f9e4c3 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
  load("@build_bazel_rules_apple//apple:ios.bzl", "ios_unit_test")
- 
+
  config_setting(
 diff --git a/submodules/TonBinding/BUILD b/submodules/TonBinding/BUILD
 index e32788b00b..73d6833652 100644
@@ -1342,7 +1577,7 @@ index f587da8b5d..fff3a83546 100644
  import Translation
 +import _Translation_SwiftUI
  import Combine
- 
+
  // Incuding at least one Objective-C class in a swift file ensures that it doesn't get stripped by the linker
 diff --git a/submodules/TranslateUI/Sources/TranslateScreen.swift b/submodules/TranslateUI/Sources/TranslateScreen.swift
 index a7d9db798d..3946e5d6cb 100644
@@ -1356,11 +1591,11 @@ index a7d9db798d..3946e5d6cb 100644
 +import _Translation_SwiftUI
  import ResizableSheetComponent
  import GlassBarButtonComponent
- 
+
 @@ -135,7 +137,7 @@ private final class SheetContent: CombinedComponent {
              self.translationDisposable.dispose()
          }
-         
+
 -        func translate(text: String, fromLang: String?, toLang: String) -> Signal<(String, [MessageTextEntity])?, TranslationError> {
 +        func translate(text: String, fromLang: String?, toLang: String) -> Signal<(String, [MessageTextEntity])?, TelegramCore.TranslationError> {
              if self.useAlternativeTranslation {
@@ -1372,7 +1607,7 @@ index 96f6226f73..b17d6b842d 100644
 +++ b/submodules/UIKitRuntimeUtils/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "UIKitRuntimeUtils",
 diff --git a/submodules/Utils/DarwinDirStat/BUILD b/submodules/Utils/DarwinDirStat/BUILD
@@ -1381,7 +1616,7 @@ index 1505fd502e..7e6bc1d92d 100644
 +++ b/submodules/Utils/DarwinDirStat/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "DarwinDirStat",
 diff --git a/submodules/Utils/LokiRng/BUILD b/submodules/Utils/LokiRng/BUILD
@@ -1390,7 +1625,7 @@ index 1141ebd653..f713c64b1e 100644
 +++ b/submodules/Utils/LokiRng/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "LokiRng",
 diff --git a/submodules/Utils/ShelfPack/BUILD b/submodules/Utils/ShelfPack/BUILD
@@ -1399,7 +1634,7 @@ index 6b266da715..0f2a079bad 100644
 +++ b/submodules/Utils/ShelfPack/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "ShelfPack",
 diff --git a/submodules/WebPBinding/BUILD b/submodules/WebPBinding/BUILD
@@ -1408,7 +1643,7 @@ index 3b00918601..b61d13732e 100644
 +++ b/submodules/WebPBinding/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "WebPBinding",
 diff --git a/submodules/YuvConversion/BUILD b/submodules/YuvConversion/BUILD
@@ -1417,7 +1652,7 @@ index 726607e056..c1b122dede 100644
 +++ b/submodules/YuvConversion/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
-  
+
  objc_library(
      name = "YuvConversion",
 diff --git a/submodules/ffmpeg/BUILD b/submodules/ffmpeg/BUILD
@@ -1427,13 +1662,13 @@ index 2c1758dee2..e302ef44f3 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  ffmpeg_header_paths = [
      "libavutil/hwcontext.h",
 @@ -202,6 +204,14 @@ genrule(
      """
          set -x
- 
+
 +        # Resolve DEVELOPER_DIR to absolute path
 +        if [ -n "$${DEVELOPER_DIR:-}" ] && [ "$${DEVELOPER_DIR}" = "$${DEVELOPER_DIR#/}" ]; then
 +          export DEVELOPER_DIR="$$(cd "$$DEVELOPER_DIR" && pwd -P)"
@@ -1444,11 +1679,11 @@ index 2c1758dee2..e302ef44f3 100644
 +
          ABS_RULEDIR="$$(pwd)/$(RULEDIR)"
          echo "ABS_RULEDIR=$$ABS_RULEDIR"
- 
+
 @@ -266,13 +276,14 @@ genrule(
- 
+
          FFMPEG_VERSION="7.1.1"
- 
+
 -        if [ "$(TARGET_CPU)" == "ios_arm64" ]; then
 +        if [ "$(TARGET_CPU)" == "ios_arm64" ] || [ "$(TARGET_CPU)" == "aarch64" ] || [ "$(TARGET_CPU)" == "x86_64" ]; then
              BUILD_ARCH="arm64"
@@ -1459,7 +1694,7 @@ index 2c1758dee2..e302ef44f3 100644
              echo "Unsupported architecture $(TARGET_CPU)"
 +            exit 1
          fi
- 
+
          "$$SOURCE_PATH/build-ffmpeg-bazel.sh" "$$VARIANT" "$$BUILD_ARCH" "$$BUILD_DIR" "$$SOURCE_PATH" "$$FFMPEG_VERSION"
 @@ -288,6 +299,9 @@ genrule(
      ] + [
@@ -1478,9 +1713,9 @@ index a816a5ac02..cddfd99143 100755
 @@ -1,4 +1,4 @@
 -#!/bin/sh
 +#!/bin/bash
- 
+
  set -x
- 
+
 @@ -84,7 +84,7 @@ do
  	do
  		LIB="$THIN/$ARCH/lib/$LIB_NAME.a"
@@ -1493,7 +1728,7 @@ index a816a5ac02..cddfd99143 100755
 @@ -124,13 +124,12 @@ then
  		LIBVPX_PATH="$SOURCE_DIR/libvpx"
  		LIBDAV1D_PATH="$SOURCE_DIR/libdav1d"
- 
+
 -		CFLAGS="$EXTRA_CFLAGS -arch $ARCH"
  		if [ "$RAW_ARCH" = "sim_arm64" ]; then
  			PLATFORM="iPhoneSimulator"
@@ -1508,12 +1743,12 @@ index a816a5ac02..cddfd99143 100755
  		        EXPORT="GASPP_FIX_XCODE5=1"
 @@ -138,6 +137,8 @@ then
  		fi
- 
+
  		XCRUN_SDK=`echo $PLATFORM | tr '[:upper:]' '[:lower:]'`
 +		SDK_PATH=$(xcrun --sdk $XCRUN_SDK --show-sdk-path)
 +		CFLAGS="$CFLAGS -isysroot $SDK_PATH"
  		CC="xcrun -sdk $XCRUN_SDK clang"
- 
+
  		if [ "$RAW_ARCH" = "arm64" ] || [ "$RAW_ARCH" = "sim_arm64" ]
 @@ -166,6 +167,8 @@ then
  			    --arch=$ARCH \
@@ -1527,11 +1762,11 @@ index a816a5ac02..cddfd99143 100755
 @@ -176,7 +179,7 @@ then
  			echo "$CONFIGURE_FLAGS" > "$CONFIGURED_MARKER"
  		fi
- 
+
 -		CORE_COUNT=`PATH="$PATH:/usr/sbin" sysctl -n hw.logicalcpu`
 +		CORE_COUNT=$(nproc 2>/dev/null || PATH="$PATH:/usr/sbin" sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
  		make -j$CORE_COUNT install $EXPORT || exit 1
- 
+
  		popd
 @@ -190,7 +193,7 @@ do
  	do
@@ -1549,7 +1784,7 @@ index 48e6014229..54b6e1e5ab 100755
 @@ -1,4 +1,4 @@
 -#!/bin/sh
 +#!/bin/bash
- 
+
  if [ "$1" == "--version" ]; then
  	echo "0.29.2"
 diff --git a/submodules/libphonenumber/BUILD b/submodules/libphonenumber/BUILD
@@ -1558,7 +1793,7 @@ index 65a98a6b27..aa6422eb14 100644
 +++ b/submodules/libphonenumber/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "libphonenumber",
 diff --git a/submodules/openssl/BUILD b/submodules/openssl/BUILD
@@ -1577,7 +1812,7 @@ index 0d2b59b685..ea855966b3 100644
 +++ b/submodules/rlottie/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "RLottieBinding",
 diff --git a/submodules/sqlcipher/BUILD b/submodules/sqlcipher/BUILD
@@ -1586,7 +1821,7 @@ index 266e1d9bf5..71cc95bdd3 100644
 +++ b/submodules/sqlcipher/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  public_headers = glob([
      "PublicHeaders/**/*.h",
 diff --git a/third-party/LibYuvBinding/BUILD b/third-party/LibYuvBinding/BUILD
@@ -1595,7 +1830,7 @@ index f0bcee5267..2cd327e7a7 100644
 +++ b/third-party/LibYuvBinding/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  objc_library(
      name = "LibYuvBinding",
 diff --git a/third-party/ZipArchive/BUILD b/third-party/ZipArchive/BUILD
@@ -1604,7 +1839,7 @@ index 540012bd45..a40fe12d9a 100644
 +++ b/third-party/ZipArchive/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
-  
+
  objc_library(
      name = "ZipArchive",
 diff --git a/third-party/boost_regex/BUILD b/third-party/boost_regex/BUILD
@@ -1613,7 +1848,7 @@ index f25b0d8f78..cc40036f14 100644
 +++ b/third-party/boost_regex/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
-  
+
  objc_library(
      name = "boost_regex",
 diff --git a/third-party/boringssl/BUILD b/third-party/boringssl/BUILD
@@ -1623,7 +1858,7 @@ index 8ba419041f..fdcc84586c 100644
 @@ -12,7 +12,8 @@
  # OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  # CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
- 
+
 -#load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -1643,7 +1878,7 @@ index 8ba419041f..fdcc84586c 100644
 -        ":ssl_headers",
      ],
  )
- 
+
 diff --git a/third-party/dav1d/BUILD b/third-party/dav1d/BUILD
 index ba022d0420..b5d55d4d30 100644
 --- a/third-party/dav1d/BUILD
@@ -1651,7 +1886,7 @@ index ba022d0420..b5d55d4d30 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  generated_headers = [
      "vcs_version.h",
 @@ -39,19 +41,21 @@ genrule(
@@ -1661,10 +1896,10 @@ index ba022d0420..b5d55d4d30 100644
 -        "@ninja-mac_zip//file",
 +        "@ninja-linux_zip//file",
      ],
-     cmd_bash = 
+     cmd_bash =
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_arm64" ]; then
 -        BUILD_ARCH="arm64"
 -    elif [ "$(TARGET_CPU)" == "ios_sim_arm64" ]; then
@@ -1680,7 +1915,7 @@ index ba022d0420..b5d55d4d30 100644
 +    fi
 +
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -65,7 +69,7 @@ genrule(
@@ -1689,13 +1924,13 @@ index ba022d0420..b5d55d4d30 100644
      mkdir -p "$$NINJA_DIR"
 -    unzip "$(location @ninja-mac_zip//file)" -d "$$NINJA_DIR"
 +    unzip "$(location @ninja-linux_zip//file)" -d "$$NINJA_DIR"
- 
+
      cp $(location :build-dav1d-bazel.sh) "$$BUILD_DIR/"
      cp $(location :arm64-iPhoneSimulator.meson) "$$BUILD_DIR/"
 @@ -78,7 +82,41 @@ genrule(
      mkdir -p "$$BUILD_DIR/Public/compat"
      mkdir -p "$$BUILD_DIR/Public/common"
- 
+
 -    PATH="$$PATH:$$MESON_DIR/meson-1.6.0:$$NINJA_DIR" sh $$BUILD_DIR/build-dav1d-bazel.sh $$BUILD_ARCH "$$BUILD_DIR"
 +    # Patch the meson crossfile to use the correct SDK path and cross-compiler.
 +    XCODE_DEV_DIR="$${DEVELOPER_DIR:?DEVELOPER_DIR must be set}"
@@ -1752,7 +1987,7 @@ index 4a114d1faa..f144322eb4 100644
 @@ -163,7 +163,13 @@ else
          have_clock_gettime = true
      endif
- 
+
 -    have_posix_memalign = cc.has_function('posix_memalign', prefix : '#include <stdlib.h>', args : test_args)
 +    if host_machine.system() in ['darwin', 'ios', 'tvos']
 +        # Apple SDKs declare posix_memalign in malloc/_malloc.h.
@@ -1770,7 +2005,7 @@ index 6df4bd50fa..6bebc8d8bd 100644
 +++ b/third-party/dav1d/build-dav1d-bazel.sh
 @@ -1,6 +1,17 @@
  #!/bin/sh
- 
+
  set -e
 +
 +# Resolve DEVELOPER_DIR to an absolute path before any cd.
@@ -1783,9 +2018,9 @@ index 6df4bd50fa..6bebc8d8bd 100644
 +fi
 +TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 +export PATH="$TOOLCHAIN_BIN:$PATH"
- 
+
  ARCH="$1"
- 
+
 @@ -15,8 +26,8 @@
      rm -f "arm64-iPhoneSimulator-custom.meson"
      TARGET_CROSSFILE="$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneSimulator-custom.meson"
@@ -1798,7 +2033,7 @@ index 6df4bd50fa..6bebc8d8bd 100644
  else
      echo "Unsupported architecture $ARCH"
 @@ -33,4 +44,3 @@
- 
+
  popd
  popd
 -
@@ -1818,7 +2053,7 @@ index 12cb66aafa..334c259bac 100644
 @@ -18,11 +18,11 @@ set -x
      mkdir -p "$$CMAKE_DIR"
      tar -xf "$(location @cmake_tar_gz//file)" -C "$$CMAKE_DIR"
-     
+
 -    tar -xzf "$(location @flatbuffers_zip//file)" --directory "$$BUILD_DIR"
 +    unzip -q "$(location @flatbuffers_zip//file)" -d "$$BUILD_DIR"
      pushd "$$BUILD_DIR/flatbuffers-24.12.23"
@@ -1828,7 +2063,7 @@ index 12cb66aafa..334c259bac 100644
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" cmake .. -DCMAKE_BUILD_TYPE=Release -DFLATBUFFERS_BUILD_TESTS=0 -DFLATBUFFERS_INSTALL=0 -DFLATBUFFERS_BUILD_FLATLIB=0 -DFLATBUFFERS_STATIC_FLATC=0
      make -j $$core_count
      popd
- 
+
 diff --git a/third-party/libjxl/BUILD b/third-party/libjxl/BUILD
 index 58ab6bebee..d76714d52f 100644
 --- a/third-party/libjxl/BUILD
@@ -1836,13 +2071,13 @@ index 58ab6bebee..d76714d52f 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  headers = [
      "jxl/codestream_header.h",
 @@ -49,17 +51,7 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_armv7" ]; then
 -        BUILD_ARCH="armv7"
 -    elif [ "$(TARGET_CPU)" == "ios_arm64" ]; then
@@ -1855,13 +2090,13 @@ index 58ab6bebee..d76714d52f 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 -    fi
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -78,7 +70,7 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/jxl"
- 
+
 -    PATH="$$CMAKE_DIR/cmake-4.1.2-macos-universal/CMake.app/Contents/bin:$$PATH" sh $$BUILD_DIR/build-libjxl-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libjxl" "$$BUILD_DIR"
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" bash $$BUILD_DIR/build-libjxl-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libjxl" "$$BUILD_DIR"
      """ +
@@ -1883,7 +2118,7 @@ index d63765f2af..1f5c3b6fe0 100755
 +++ b/third-party/libjxl/build-libjxl-bazel.sh
 @@ -1,6 +1,17 @@
  #! /bin/sh
- 
+
  set -e
 +
 +# Resolve DEVELOPER_DIR to an absolute path before any cd.
@@ -1896,12 +2131,12 @@ index d63765f2af..1f5c3b6fe0 100755
 +fi
 +TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 +export PATH="$TOOLCHAIN_BIN:$PATH"
- 
+
  ARCH="$1"
- 
+
 @@ -12,9 +23,9 @@
  CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DJPEGXL_ENABLE_BENCHMARK=0 -DJPEGXL_ENABLE_FUZZERS=0 -DJPEGXL_ENABLE_TOOLS=0 -DJPEGXL_ENABLE_JPEGLI=0 -DJPEGXL_ENABLE_DOXYGEN=0 -DJPEGXL_ENABLE_MANPAGES=0 -DJPEGXL_ENABLE_BENCHMARK=0 -DJPEGXL_ENABLE_EXAMPLES=0 -DJPEGXL_BUNDLE_LIBPNG=0 -DJPEGXL_ENABLE_JNI=0 -DJPEGXL_ENABLE_SJPEG=0 -DJPEGXL_ENABLE_OPENEXR=0 -DJPEGXL_ENABLE_TRANSCODE_JPEG=0 -DJPEGXL_STATIC=1 -DJPEGXL_ENABLE_BOXES=0"
- 
+
  if [ "$ARCH" = "arm64" ]; then
 -  IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
 +  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
@@ -1909,7 +2144,7 @@ index d63765f2af..1f5c3b6fe0 100755
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
    export CXXFLAGS="$CFLAGS"
- 
+
    cd "$BUILD_DIR"
 @@ -24,7 +35,11 @@
    touch toolchain.cmake
@@ -1921,7 +2156,7 @@ index d63765f2af..1f5c3b6fe0 100755
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_CXX_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
- 
+
    cmake -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} $CMAKE_OPTIONS ../libjxl
    make
 diff --git a/third-party/libjxl/libjxl/lib/BUILD b/third-party/libjxl/libjxl/lib/BUILD
@@ -1943,7 +2178,7 @@ index 07a6793054..6ad2a973ac 100644
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
  # Description:
  #   Brotli is a generic-purpose lossless compression algorithm.
- 
+
 diff --git a/third-party/libjxl/libjxl/third_party/highway/BUILD b/third-party/libjxl/libjxl/third_party/highway/BUILD
 index d54bd46b20..e8aa8a535a 100644
 --- a/third-party/libjxl/libjxl/third_party/highway/BUILD
@@ -1953,7 +2188,7 @@ index d54bd46b20..e8aa8a535a 100644
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
  load("@rules_license//rules:license.bzl", "license")
  load("@bazel_skylib//lib:selects.bzl", "selects")
- 
+
 diff --git a/third-party/libjxl/libjxl/third_party/highway/hwy/contrib/sort/BUILD b/third-party/libjxl/libjxl/third_party/highway/hwy/contrib/sort/BUILD
 index 7debef63a3..f9ebd273a4 100644
 --- a/third-party/libjxl/libjxl/third_party/highway/hwy/contrib/sort/BUILD
@@ -1975,7 +2210,7 @@ index 8fb6c0fbf4..39eb6c442a 100644
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
  load("@io_bazel_rules_docker//container:container.bzl", "container_push")
  load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit")
- 
+
 diff --git a/third-party/libjxl/libjxl/third_party/skcms/bazel/rbe/linux-bazel-4.2.1/cc/BUILD b/third-party/libjxl/libjxl/third_party/skcms/bazel/rbe/linux-bazel-4.2.1/cc/BUILD
 index 5afa0ad6bd..b5eae7e52e 100644
 --- a/third-party/libjxl/libjxl/third_party/skcms/bazel/rbe/linux-bazel-4.2.1/cc/BUILD
@@ -2002,7 +2237,7 @@ index 664e4419da..7708e3fee8 100644
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
  package(default_visibility = ["//:__subpackages__"])
- 
+
  cc_library(
 diff --git a/third-party/libprisma/BUILD b/third-party/libprisma/BUILD
 index 66b922f563..bf261d9f9a 100644
@@ -2020,13 +2255,13 @@ index 9040681907..eeaf891f83 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  headers = [
      "vp8.h",
 @@ -37,21 +39,16 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_armv7" ]; then
 -        BUILD_ARCH="armv7"
 -        PLATFORM_HEADER_DIR="armv7-darwin-gcc"
@@ -2051,13 +2286,13 @@ index 9040681907..eeaf891f83 100644
 +
 +    BUILD_ARCH="arm64"
 +    PLATFORM_HEADER_DIR="arm64-darwin-gcc"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -76,7 +73,42 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/libvpx"
- 
+
 -    PATH="$$PATH:$$ABS_YASM_DIR" sh $$BUILD_DIR/build-libvpx-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libvpx" "$$BUILD_DIR"
 +    # Create xcodebuild stub for Linux (libvpx configure uses it for version check)
 +    XCODEBUILD_STUB="$$BUILD_DIR/xcodebuild"
@@ -2111,7 +2346,7 @@ index 991aab1293..7e4ca66309 100755
 --- a/third-party/libvpx/build-libvpx-bazel.sh
 +++ b/third-party/libvpx/build-libvpx-bazel.sh
 @@ -2,6 +2,15 @@
- 
+
  set -e
  set -x
 +
@@ -2123,27 +2358,27 @@ index 991aab1293..7e4ca66309 100755
 +if [ -n "${DEVELOPER_DIR:-}" ]; then
 +  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
 +fi
- 
+
  ARCH="$1"
- 
+
 @@ -65,7 +74,8 @@
- 
+
    mkdir "${target}"
    cd "${target}"
 -  eval "${LIBVPX_SOURCE_DIR}/configure" --target="${target}" \
 +  # libvpx's configure script uses bash-specific test operators on Darwin.
 +  eval bash "${LIBVPX_SOURCE_DIR}/configure" --target="${target}" \
      ${CONFIGURE_ARGS} ${EXTRA_CONFIGURE_ARGS} ${target_specific_flags} \
- 
+
    export DIST_DIR
 @@ -129,8 +139,7 @@
    done
- 
+
    # Consume the last line of output from the loop: We don't want it.
 -  sed -i.bak -e '$d' "${config_file}"
 -  rm "${config_file}.bak"
 +  sed -i -e '$d' "${config_file}"
- 
+
    printf "#endif\n\n" >> "${config_file}"
    printf "#endif  // ${include_guard}" >> "${config_file}"
 diff --git a/third-party/libyuv/BUILD b/third-party/libyuv/BUILD
@@ -2152,7 +2387,7 @@ index 14e2255c5e..5c3aee7cd6 100644
 +++ b/third-party/libyuv/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  config_setting(
      name = "debug_build",
 diff --git a/third-party/mozjpeg/BUILD b/third-party/mozjpeg/BUILD
@@ -2162,13 +2397,13 @@ index b74836738d..75607b15f8 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  headers = [
      "turbojpeg.h",
 @@ -28,17 +30,7 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_armv7" ]; then
 -        BUILD_ARCH="armv7"
 -    elif [ "$(TARGET_CPU)" == "ios_arm64" ]; then
@@ -2181,13 +2416,13 @@ index b74836738d..75607b15f8 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 -    fi
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -57,7 +49,7 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/mozjpeg"
- 
+
 -    PATH="$$PATH:$$CMAKE_DIR/cmake-4.1.2-macos-universal/CMake.app/Contents/bin" sh $$BUILD_DIR/build-mozjpeg-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/mozjpeg" "$$BUILD_DIR"
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" bash $$BUILD_DIR/build-mozjpeg-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/mozjpeg" "$$BUILD_DIR"
      """ +
@@ -2209,7 +2444,7 @@ index c115e26c97..5c65fd9125 100755
 +++ b/third-party/mozjpeg/build-mozjpeg-bazel.sh
 @@ -1,6 +1,17 @@
  #! /bin/sh
- 
+
  set -e
 +
 +# Resolve DEVELOPER_DIR to an absolute path before any cd.
@@ -2222,19 +2457,19 @@ index c115e26c97..5c65fd9125 100755
 +fi
 +TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 +export PATH="$TOOLCHAIN_BIN:$PATH"
- 
+
  ARCH="$1"
- 
+
 @@ -8,9 +19,9 @@
  BUILD_DIR=$(echo "$(cd "$(dirname "$3")"; pwd -P)/$(basename "$3")")
- 
+
  if [ "$ARCH" = "arm64" ]; then
 -  IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
 +  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
- 
+
    cd "$BUILD_DIR"
    mkdir build
 @@ -19,10 +30,12 @@
@@ -2245,7 +2480,7 @@ index c115e26c97..5c65fd9125 100755
 +  echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
- 
+
    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} -DPNG_SUPPORTED=FALSE -DENABLE_SHARED=FALSE -DWITH_JPEG8=1 -DBUILD=10000 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../mozjpeg
 -  make
 +  make jpeg-static turbojpeg-static
@@ -2258,7 +2493,7 @@ index 1da3eaa02d..b2a6b6ec1e 100644
 +++ b/third-party/ogg/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
-  
+
  objc_library(
      name = "ogg",
 diff --git a/third-party/openh264/BUILD b/third-party/openh264/BUILD
@@ -2267,7 +2502,7 @@ index 845e670c25..0ea0605a4b 100644
 +++ b/third-party/openh264/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  arm64_specific_sources = [
      "third_party/openh264/src/codec/encoder/core/arm64/intra_pred_aarch64_neon.S",
 diff --git a/third-party/opus/BUILD b/third-party/opus/BUILD
@@ -2277,13 +2512,13 @@ index 873cdda53d..1e96a9ab10 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  headers = [
      "opus.h",
 @@ -21,21 +23,7 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_armv7" ]; then
 -        BUILD_ARCH="armv7"
 -    elif [ "$(TARGET_CPU)" == "ios_arm64" ]; then
@@ -2300,13 +2535,13 @@ index 873cdda53d..1e96a9ab10 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 -    fi
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -46,7 +34,7 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/opus"
- 
+
 -    sh $$BUILD_DIR/build-opus-bazel.sh $$BUILD_ARCH "$$BUILD_DIR" opus-1.5.1.tar.gz
 +    bash $$BUILD_DIR/build-opus-bazel.sh $$BUILD_ARCH "$$BUILD_DIR" opus-1.5.1.tar.gz
      """ +
@@ -2327,9 +2562,9 @@ index bb79c9efc6..588f5d41a4 100755
 --- a/third-party/opus/build-opus-bazel.sh
 +++ b/third-party/opus/build-opus-bazel.sh
 @@ -2,6 +2,17 @@
- 
+
  set -ex
- 
+
 +# Resolve DEVELOPER_DIR to an absolute path before any cd.
 +if [ -z "${DEVELOPER_DIR:-}" ]; then
 +  echo "DEVELOPER_DIR must be set" >&2
@@ -2352,14 +2587,14 @@ index bb79c9efc6..588f5d41a4 100755
 +  EXTRA_CFLAGS="--target=arm64-apple-ios$MINIOSVERSION"
    EXTRA_CONFIG="--host=arm-apple-darwin"
  fi
- 
+
  SDK_PATH="$(xcrun --sdk $PLATFORM --show-sdk-path 2>/dev/null)"
 +CC="$(xcrun --find clang 2>/dev/null || echo clang)"
 +AR="$(xcrun --find ar 2>/dev/null || echo ar)"
 +RANLIB="$(xcrun --find ranlib 2>/dev/null || echo ranlib)"
- 
+
  mkdir -p "${INTERDIR}"
- 
+
  ./configure --disable-shared --enable-static --with-pic --disable-extra-programs --disable-doc --disable-asm --enable-intrinsics ${EXTRA_CONFIG} \
    --prefix="${INTERDIR}" \
 -  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -L${OUTPUTDIR}/lib" \
@@ -2368,7 +2603,7 @@ index bb79c9efc6..588f5d41a4 100755
 +  RANLIB="$RANLIB" \
 +  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -L${OUTPUTDIR}/lib -isysroot ${SDK_PATH}" \
    CFLAGS="$CFLAGS ${EXTRA_CFLAGS} ${OPT_CFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -I${OUTPUTDIR}/include -isysroot ${SDK_PATH}" \
- 
+
  make -j
 diff --git a/third-party/opusfile/BUILD b/third-party/opusfile/BUILD
 index 0e62d353df..a8b0434ba8 100644
@@ -2376,7 +2611,7 @@ index 0e62d353df..a8b0434ba8 100644
 +++ b/third-party/opusfile/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
-  
+
  objc_library(
      name = "opusfile",
 diff --git a/third-party/rnnoise/BUILD b/third-party/rnnoise/BUILD
@@ -2385,7 +2620,7 @@ index e1066c862b..8c30acd1ff 100644
 +++ b/third-party/rnnoise/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  replace_symbol_list = [
      "_celt_autocorr",
 diff --git a/third-party/td/BUILD b/third-party/td/BUILD
@@ -2401,7 +2636,7 @@ index 365f56ee82..a9c19aa3fa 100644
 @@ -34,13 +36,7 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_arm64" ]; then
 -        BUILD_ARCH="arm64"
 -    elif [ "$(TARGET_CPU)" == "ios_sim_arm64" ]; then
@@ -2410,13 +2645,13 @@ index 365f56ee82..a9c19aa3fa 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 -    fi
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -77,7 +73,7 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/td"
- 
+
 -    PATH="$$CMAKE_DIR/cmake-4.1.2-macos-universal/CMake.app/Contents/bin:$$PATH" sh $$BUILD_DIR/build-td-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/td" "$$BUILD_DIR" "$$OPENSSL_DIR"
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" bash $$BUILD_DIR/build-td-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/td" "$$BUILD_DIR" "$$OPENSSL_DIR"
      """ +
@@ -2439,7 +2674,7 @@ index a977bbb10d..054ec04563 100755
 @@ -1,7 +1,18 @@
 -#!/bin/sh
 +#!/bin/bash
- 
+
  set -e
  set -x
 +
@@ -2453,13 +2688,13 @@ index a977bbb10d..054ec04563 100755
 +fi
 +TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 +export PATH="$TOOLCHAIN_BIN:$PATH"
- 
+
  ARCH="$1"
- 
+
 @@ -19,34 +30,52 @@
- 
+
  cd "$BUILD_DIR"
- 
+
 -# Generate source files
 +# Generate source files using the host compiler, not the Apple cross toolchain.
 +SAVED_PATH="$PATH"
@@ -2480,7 +2715,7 @@ index a977bbb10d..054ec04563 100755
 +cmake --build . -- -j$(nproc)
 +export PATH="$SAVED_PATH"
  cd ..
- 
+
  if [ "$ARCH" = "arm64" ]; then
 -  IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
 +  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
@@ -2499,13 +2734,13 @@ index a977bbb10d..054ec04563 100755
    echo "Unsupported architecture $ARCH"
    exit 1
  fi
- 
+
 -# Common build steps
 +export CXXFLAGS="$CFLAGS"
 +
  mkdir build
  cd build
- 
+
  touch toolchain.cmake
  echo "set(CMAKE_SYSTEM_NAME Darwin)" >> toolchain.cmake
  echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake
@@ -2515,7 +2750,7 @@ index a977bbb10d..054ec04563 100755
 +echo "set(CMAKE_C_COMPILER_TARGET ${TARGET_TRIPLE})" >> toolchain.cmake
 +echo "set(CMAKE_CXX_COMPILER_TARGET ${TARGET_TRIPLE})" >> toolchain.cmake
 +echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
- 
+
  cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} ../td $options
 -make tde2e -j$(sysctl -n hw.ncpu)
 +make tde2e -j$(nproc)
@@ -2526,13 +2761,13 @@ index 82b7278c8e..9d7b8a4452 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
+
  headers = [
      "decode.h",
 @@ -29,15 +31,7 @@ genrule(
      """
      set -ex
- 
+
 -    if [ "$(TARGET_CPU)" == "ios_arm64" ]; then
 -        BUILD_ARCH="arm64"
 -    elif [ "$(TARGET_CPU)" == "ios_sim_arm64" ]; then
@@ -2543,13 +2778,13 @@ index 82b7278c8e..9d7b8a4452 100644
 -        echo "Unsupported architecture $(TARGET_CPU)"
 -    fi
 +    BUILD_ARCH="arm64"
- 
+
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
 @@ -56,7 +50,7 @@ genrule(
- 
+
      mkdir -p "$$BUILD_DIR/Public/libwebp"
- 
+
 -    PATH="$$CMAKE_DIR/cmake-4.1.2-macos-universal/CMake.app/Contents/bin:$$PATH" sh $$BUILD_DIR/build-webp-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libwebp" "$$BUILD_DIR"
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" bash $$BUILD_DIR/build-webp-bazel.sh $$BUILD_ARCH "$$BUILD_DIR/libwebp" "$$BUILD_DIR"
      """ +
@@ -2571,7 +2806,7 @@ index 7a3d123187..27348ccb18 100755
 +++ b/third-party/webp/build-webp-bazel.sh
 @@ -3,6 +3,17 @@
  set -ex
- 
+
  set -e
 +
 +# Resolve DEVELOPER_DIR to an absolute path before any cd.
@@ -2584,19 +2819,19 @@ index 7a3d123187..27348ccb18 100755
 +fi
 +TOOLCHAIN_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 +export PATH="$TOOLCHAIN_BIN:$PATH"
- 
+
  ARCH="$1"
- 
+
 @@ -12,9 +23,9 @@
  COMMON_ARGS="-DWEBP_LINK_STATIC=1 -DWEBP_BUILD_CWEBP=0 -DWEBP_BUILD_DWEBP=0 -DWEBP_BUILD_IMG2WEBP=0 -DWEBP_BUILD_ANIM_UTILS=0 -DWEBP_BUILD_GIF2WEBP=0 -DWEBP_BUILD_VWEBP=0 -DWEBP_BUILD_WEBPINFO=0 -DWEBP_BUILD_LIBWEBPMUX=0 -DWEBP_BUILD_WEBPMUX=0 -DWEBP_BUILD_EXTRAS=0"
- 
+
  if [ "$ARCH" = "arm64" ]; then
 -  IOS_PLATFORMDIR="$(xcode-select -p)/Platforms/iPhoneOS.platform"
 +  IOS_PLATFORMDIR="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
    IOS_SYSROOT=($IOS_PLATFORMDIR/Developer/SDKs/iPhoneOS*.sdk)
 -  export CFLAGS="-Wall -arch arm64 -miphoneos-version-min=13.0 -funwind-tables"
 +  export CFLAGS="-Wall --target=arm64-apple-ios13.0 -funwind-tables -isysroot ${IOS_SYSROOT[0]}"
- 
+
    cd "$BUILD_DIR"
    mkdir build
 @@ -23,7 +34,9 @@
@@ -2607,7 +2842,7 @@ index 7a3d123187..27348ccb18 100755
 +  echo "set(CMAKE_C_COMPILER $TOOLCHAIN_BIN/clang)" >> toolchain.cmake
 +  echo "set(CMAKE_C_COMPILER_TARGET arm64-apple-ios13.0)" >> toolchain.cmake
 +  echo "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)" >> toolchain.cmake
- 
+
    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_OSX_SYSROOT=${IOS_SYSROOT[0]} $COMMON_ARGS ../libwebp
    make
 diff --git a/third-party/webrtc/BUILD b/third-party/webrtc/BUILD
@@ -2617,8 +2852,8 @@ index 37837b1606..72284d081d 100644
 @@ -1,3 +1,5 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +load("@rules_cc//cc:objc_library.bzl", "objc_library")
- 
- 
+
+
  config_setting(
 diff --git a/third-party/webrtc/absl/BUILD b/third-party/webrtc/absl/BUILD
 index 5ab49294ac..4248bd257d 100644
@@ -2626,7 +2861,7 @@ index 5ab49294ac..4248bd257d 100644
 +++ b/third-party/webrtc/absl/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  absl_headers = [
      "absl/container/internal/layout.h",
 diff --git a/third-party/webrtc/absl/absl/base/attributes.h b/third-party/webrtc/absl/absl/base/attributes.h
@@ -2646,7 +2881,7 @@ index 38086a82e4..38a1111f23 100644
 +// functions, which is used in some WebRTC code.
  #define ABSL_ATTRIBUTE_LIFETIME_BOUND
 -#endif
- 
+
  // ABSL_ATTRIBUTE_TRIVIAL_ABI
  // Indicates that a type is "trivially relocatable" -- meaning it can be
 diff --git a/third-party/webrtc/crc32c/BUILD b/third-party/webrtc/crc32c/BUILD
@@ -2655,7 +2890,7 @@ index f32c5e6120..ab9cf30fb5 100644
 +++ b/third-party/webrtc/crc32c/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  arch_specific_crc32c_sources = select({
      "@build_bazel_rules_apple//apple:ios_arm64": [
 diff --git a/third-party/webrtc/libsrtp/BUILD b/third-party/webrtc/libsrtp/BUILD
@@ -2664,7 +2899,7 @@ index 624b70c184..fc664767ec 100644
 +++ b/third-party/webrtc/libsrtp/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  common_flags = [
      "-DWEBRTC_IOS",
 diff --git a/third-party/webrtc/libsrtp_config/BUILD b/third-party/webrtc/libsrtp_config/BUILD
@@ -2673,7 +2908,7 @@ index b01472c3c0..6d157f561b 100644
 +++ b/third-party/webrtc/libsrtp_config/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  cc_library(
      name = "libsrtp_config",
 diff --git a/third-party/webrtc/pffft/BUILD b/third-party/webrtc/pffft/BUILD
@@ -2682,7 +2917,7 @@ index 66ff3db5ec..923b8d9597 100644
 +++ b/third-party/webrtc/pffft/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  cc_library(
      name = "pffft",
 diff --git a/third-party/webrtc/rnnoise/BUILD b/third-party/webrtc/rnnoise/BUILD
@@ -2691,7 +2926,7 @@ index 5c3d48148b..f99b8cf761 100644
 +++ b/third-party/webrtc/rnnoise/BUILD
 @@ -1,3 +1,4 @@
 +load("@rules_cc//cc:cc_library.bzl", "cc_library")
- 
+
  cc_library(
      name = "webrtc_rnnoise",
 diff --git a/third-party/yasm/BUILD b/third-party/yasm/BUILD
@@ -2715,7 +2950,7 @@ index ecfef261b0..d3a3c88cbb 100644
 +    PATH="$$CMAKE_DIR/cmake-4.1.2-linux-x86_64/bin:$$PATH" cmake .. -DYASM_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DPYTHON_EXECUTABLE="$$(which python3)"
      make -j $$core_count
      popd
- 
+
 diff --git a/build-system/bazel-rules/apple_support/lib/apple_support.bzl b/build-system/bazel-rules/apple_support/lib/apple_support.bzl
 index f1fa0bd..7f027d0 100644
 --- a/build-system/bazel-rules/apple_support/lib/apple_support.bzl

@@ -1,21 +1,110 @@
+diff --git a/apple/BUILD b/apple/BUILD
+index a4cfdc3..69a1bd8 100644
+--- a/apple/BUILD
++++ b/apple/BUILD
+@@ -6,6 +6,19 @@ package(default_visibility = ["//visibility:public"])
+
+ licenses(["notice"])
+
++# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
++# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
++#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
++label_flag(
++    name = "sdk_tool_files",
++    build_setting_default = ":_empty_sdk_tool_files",
++)
++
++filegroup(
++    name = "_empty_sdk_tool_files",
++    srcs = [],
++)
++
+ # Create a set of public config_settings that can be used in select()s.
+ [
+     alias(
+diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
+index 541c32f..be396b3 100644
+--- a/apple/internal/apple_toolchains.bzl
++++ b/apple/internal/apple_toolchains.bzl
+@@ -65,6 +65,10 @@ and zipped as a cacheable artifact.
+         "main_thread_checker_tool": """\
+ The files_to_run for a tool to find libMainThreadChecker.dylib linked to a
+ binary.
++""",
++        "sdk_tool_files": """\
++Additional Apple SDK/toolchain files that must be present in action sandboxes
++for helper tools such as plisttool and plutil.
+ """,
+         "plisttool": """\
+ The files_to_run for a tool to perform plist operations such as variable
+@@ -123,6 +127,10 @@ for deterministic JSON handling.
+ def _shared_attrs():
+     """Private attributes on every rule to provide access to bundling tools and other file deps."""
+     return {
++        "_sdk_tool_files": attr.label(
++            default = Label("//apple:sdk_tool_files"),
++            allow_files = True,
++        ),
+         "_mac_toolchain": attr.label(
+             default = Label("//apple/internal:mac_tools_toolchain"),
+             providers = [[AppleMacToolsToolchainInfo]],
+@@ -148,6 +156,7 @@ def _apple_mac_tools_toolchain_impl(ctx):
+             main_thread_checker_tool = ctx.attr.main_thread_checker_tool.files_to_run,
+             environment_plist_tool = ctx.attr.environment_plist_tool.files_to_run,
+             imported_dynamic_framework_processor = ctx.attr.imported_dynamic_framework_processor.files_to_run,
++            sdk_tool_files = ctx.files.sdk_tool_files,
+             plisttool = ctx.attr.plisttool.files_to_run,
+             provisioning_profile_tool = ctx.attr.provisioning_profile_tool.files_to_run,
+             swift_stdlib_tool = ctx.attr.swift_stdlib_tool.files_to_run,
+@@ -217,6 +226,14 @@ artifact.
+             executable = True,
+             doc = "A `File` referencing a tool to find libMainThreadChecker.dylib linked to a binary.",
+         ),
++        "sdk_tool_files": attr.label(
++            allow_files = True,
++            default = Label("//apple:sdk_tool_files"),
++            doc = """
++Additional Apple SDK/toolchain files that must be available in action sandboxes
++for helper tools such as plisttool and plutil.
++""",
++        ),
+         "plisttool": attr.label(
+             cfg = "target",
+             executable = True,
 diff --git a/apple/internal/codesigning_support.bzl b/apple/internal/codesigning_support.bzl
 index 61bbc88..092c6ad 100644
 --- a/apple/internal/codesigning_support.bzl
 +++ b/apple/internal/codesigning_support.bzl
 @@ -121,7 +121,7 @@ def _codesign_args_for_path(
- 
+
      cmd_codesigning = [
          "--codesign",
 -        "/usr/bin/codesign",
 +        "codesign",
      ]
- 
+
      # Add quotes for sanitizing inputs when they're invoked directly from a shell script, for
 diff --git a/apple/internal/entitlements_support.bzl b/apple/internal/entitlements_support.bzl
-index 40f3d1f..1c0e447 100644
+index 40f3d1f..14f15d6 100644
 --- a/apple/internal/entitlements_support.bzl
 +++ b/apple/internal/entitlements_support.bzl
-@@ -386,20 +386,10 @@ def _generate_der_entitlements(
+@@ -311,6 +311,7 @@ def _process_entitlements(
+         outputs = [final_entitlements],
+         platform_prerequisites = platform_prerequisites,
+         plisttool = apple_mac_toolchain_info.plisttool,
++        sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
+     )
+
+     if platform_prerequisites.platform.is_device:
+@@ -350,6 +351,7 @@ def _process_entitlements(
+             outputs = [simulator_entitlements],
+             platform_prerequisites = platform_prerequisites,
+             plisttool = apple_mac_toolchain_info.plisttool,
++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
+         )
+
+     return struct(
+@@ -386,20 +388,10 @@ def _generate_der_entitlements(
      der_entitlements = actions.declare_file(
          "entitlements/%s.der" % label_name,
      )
@@ -38,6 +127,46 @@ index 40f3d1f..1c0e447 100644
          inputs = [entitlements],
          mnemonic = "ProcessDEREntitlements",
          outputs = [der_entitlements],
+diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
+index 8d429aa..f472276 100644
+--- a/apple/internal/environment_plist.bzl
++++ b/apple/internal/environment_plist.bzl
+@@ -65,6 +65,7 @@ def _environment_plist_impl(ctx):
+     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
+     platform = platform_prerequisites.platform
+     sdk_version = platform_prerequisites.sdk_version
++    sdk_tool_files = ctx.files._sdk_tool_files
+     apple_support.run(
+         actions = ctx.actions,
+         apple_fragment = platform_prerequisites.apple_fragment,
+@@ -75,6 +76,7 @@ def _environment_plist_impl(ctx):
+             ctx.outputs.plist.path,
+         ],
+         executable = environment_plist_tool,
++        inputs = sdk_tool_files,
+         outputs = [ctx.outputs.plist],
+         xcode_config = platform_prerequisites.xcode_version_config,
+     )
+diff --git a/apple/internal/macos_binary_support.bzl b/apple/internal/macos_binary_support.bzl
+index 4aaa382..0489fb1 100644
+--- a/apple/internal/macos_binary_support.bzl
++++ b/apple/internal/macos_binary_support.bzl
+@@ -161,6 +161,7 @@ def _macos_binary_infoplist_impl(ctx):
+         output_plist = merged_infoplist,
+         platform_prerequisites = platform_prerequisites,
+         plisttool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].plisttool,
++        sdk_tool_files = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].sdk_tool_files,
+         rule_descriptor = rule_descriptor,
+         rule_label = rule_label,
+         version = ctx.attr.version,
+@@ -258,6 +259,7 @@ def _macos_command_line_launchdplist_impl(ctx):
+         output_plist = merged_launchdplist,
+         platform_prerequisites = platform_prerequisites,
+         plisttool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].plisttool,
++        sdk_tool_files = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].sdk_tool_files,
+         rule_label = rule_label,
+     )
+
 diff --git a/apple/internal/partials/apple_symbols_file.bzl b/apple/internal/partials/apple_symbols_file.bzl
 index 1a5cfb3..b9e3e7f 100644
 --- a/apple/internal/partials/apple_symbols_file.bzl
@@ -51,19 +180,176 @@ index 1a5cfb3..b9e3e7f 100644
                  "-noDaemon -arch all -symbolsPackageDir {output} {inputs} >/dev/null"
              ).format(
                  output = shell.quote(output.path),
+diff --git a/apple/internal/partials/resources.bzl b/apple/internal/partials/resources.bzl
+index c7af22a..55faddd 100644
+--- a/apple/internal/partials/resources.bzl
++++ b/apple/internal/partials/resources.bzl
+@@ -352,6 +352,7 @@ def _resources_partial_impl(
+                 output_discriminator = output_discriminator,
+                 platform_prerequisites = platform_prerequisites,
+                 plisttool = apple_mac_toolchain_info.plisttool,
++                sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
+                 rule_descriptor = rule_descriptor,
+                 rule_label = rule_label,
+                 version = version,
+diff --git a/apple/internal/partials/support/resources_support.bzl b/apple/internal/partials/support/resources_support.bzl
+index 00e45a0..185cbb1 100644
+--- a/apple/internal/partials/support/resources_support.bzl
++++ b/apple/internal/partials/support/resources_support.bzl
+@@ -409,6 +409,7 @@ def _infoplists(
+             output_plist = out_plist,
+             platform_prerequisites = platform_prerequisites,
+             plisttool = apple_mac_toolchain_info.plisttool,
++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
+             rule_label = rule_label,
+         )
+         return struct(
+@@ -536,6 +537,7 @@ def _mlmodels(
+ def _plists_and_strings(
+         *,
+         actions,
++        apple_mac_toolchain_info,
+         files,
+         force_binary = False,
+         output_discriminator,
+@@ -551,6 +553,7 @@ def _plists_and_strings(
+
+     Args:
+         actions: The actions provider from `ctx.actions`.
++        apple_mac_toolchain_info: `struct` of tools from the shared Apple toolchain.
+         files: The plist or string files to process.
+         force_binary: If true, files will be converted to binary independently of the compilation
+             mode.
+@@ -587,6 +590,7 @@ def _plists_and_strings(
+             input_file = file,
+             output_file = plist_file,
+             platform_prerequisites = platform_prerequisites,
++            sdk_tool_files = apple_mac_toolchain_info.sdk_tool_files,
+         )
+         plist_files.append(plist_file)
+
 diff --git a/apple/internal/resource_actions/app_intents.bzl b/apple/internal/resource_actions/app_intents.bzl
 index 4c36b3f..3c90e88 100644
 --- a/apple/internal/resource_actions/app_intents.bzl
 +++ b/apple/internal/resource_actions/app_intents.bzl
 @@ -68,7 +68,7 @@ def generate_app_intents_metadata_bundle(
      )
- 
+
      args = actions.args()
 -    args.add("/usr/bin/xcrun")
 +    args.add("xcrun")
      args.add("appintentsmetadataprocessor")
- 
+
      # FB347041279: Though this is not required for --compile-time-extraction, which is the only
+diff --git a/apple/internal/resource_actions/plist.bzl b/apple/internal/resource_actions/plist.bzl
+index 35ea4fe..fb6144c 100644
+--- a/apple/internal/resource_actions/plist.bzl
++++ b/apple/internal/resource_actions/plist.bzl
+@@ -47,7 +47,8 @@ def plisttool_action(
+         mnemonic = None,
+         outputs,
+         platform_prerequisites,
+-        plisttool):
++        plisttool,
++        sdk_tool_files = []):
+     """Registers an action that invokes `plisttool`.
+
+     This function is a low-level helper that simply invokes `plisttool` with the given arguments.
+@@ -62,19 +63,20 @@ def plisttool_action(
+       outputs: Any `File`s that should be treated as outputs of the underlying action.
+       platform_prerequisites: Struct containing information on the platform being targeted.
+       plisttool: A files_to_run for the plist tool.
++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool's subprocesses.
+     """
+     apple_support.run(
+         actions = actions,
+         apple_fragment = platform_prerequisites.apple_fragment,
+         arguments = [control_file.path],
+         executable = plisttool,
+-        inputs = inputs + [control_file],
++        inputs = inputs + [control_file] + sdk_tool_files,
+         mnemonic = mnemonic,
+         outputs = outputs,
+         xcode_config = platform_prerequisites.xcode_version_config,
+     )
+
+-def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
++def compile_plist(*, actions, input_file, output_file, platform_prerequisites, sdk_tool_files = []):
+     """Creates an action that compiles plist and strings files.
+
+     Args:
+@@ -82,6 +84,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
+       input_file: The property list file that should be converted.
+       output_file: The file reference for the output plist.
+       platform_prerequisites: Struct containing information on the platform being targeted.
++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plutil.
+     """
+     if input_file.basename.endswith(".strings"):
+         mnemonic = "CompileStrings"
+@@ -92,7 +95,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
+     # execute the version of plutil that takes the file directly. If the file is
+     # empty, it will echo an new line and then pipe it into plutil. We do this
+     # to handle empty files as plutil doesn't handle them very well.
+-    plutil_command = "plutil -convert binary1 -o %s --" % shell.quote(output_file.path)
++    plutil_command = "\"$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/plutil\" -convert binary1 -o %s --" % shell.quote(output_file.path)
+     complete_command = ("if [[ -s {in_file} ]] ; then {plutil_command} {in_file} ; " +
+                         "elif [[ -f {in_file} ]] ; then echo | {plutil_command} - ; " +
+                         "else exit 1 ; " +
+@@ -104,7 +107,7 @@ def compile_plist(*, actions, input_file, output_file, platform_prerequisites):
+         actions = actions,
+         apple_fragment = platform_prerequisites.apple_fragment,
+         command = complete_command,
+-        inputs = [input_file],
++        inputs = [input_file] + sdk_tool_files,
+         mnemonic = mnemonic,
+         outputs = [output_file],
+         xcode_config = platform_prerequisites.xcode_version_config,
+@@ -120,6 +123,7 @@ def merge_resource_infoplists(
+         output_plist,
+         platform_prerequisites,
+         plisttool,
++        sdk_tool_files = [],
+         rule_label):
+     """Merges a list of plist files for resource bundles with substitutions.
+
+@@ -133,6 +137,7 @@ def merge_resource_infoplists(
+       output_plist: The file reference for the output plist.
+       platform_prerequisites: Struct containing information on the platform being targeted.
+       plisttool: A files_to_run for the plist tool.
++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool.
+       rule_label: The label of the target being analyzed.
+     """
+     product_name = paths.replace_extension(bundle_name_with_extension, "")
+@@ -179,6 +184,7 @@ def merge_resource_infoplists(
+         outputs = [output_plist],
+         platform_prerequisites = platform_prerequisites,
+         plisttool = plisttool,
++        sdk_tool_files = sdk_tool_files,
+     )
+
+ def merge_root_infoplists(
+@@ -200,6 +206,7 @@ def merge_root_infoplists(
+         output_pkginfo,
+         platform_prerequisites,
+         plisttool,
++        sdk_tool_files = [],
+         rule_descriptor,
+         rule_label,
+         version,
+@@ -237,6 +244,7 @@ def merge_root_infoplists(
+       output_plist: The file reference for the merged output plist.
+       platform_prerequisites: Struct containing information on the platform being targeted.
+       plisttool: A files_to_run for the plist tool.
++      sdk_tool_files: Additional Apple SDK/toolchain files needed by plisttool.
+       rule_descriptor: A rule descriptor for platform and product types from the rule context.
+       rule_label: The label of the target being analyzed.
+       version: A label referencing AppleBundleVersionInfo, if provided by the rule.
+@@ -391,4 +399,5 @@ def merge_root_infoplists(
+         outputs = output_files,
+         platform_prerequisites = platform_prerequisites,
+         plisttool = plisttool,
++        sdk_tool_files = sdk_tool_files,
+     )
 diff --git a/apple/internal/rule_factory.bzl b/apple/internal/rule_factory.bzl
 index 87a642e..be0534c 100644
 --- a/apple/internal/rule_factory.bzl
@@ -91,7 +377,7 @@ index 87a642e..be0534c 100644
 -        },
          test = True,
      )
- 
+
 diff --git a/apple/internal/templates/docc_preview.template.sh b/apple/internal/templates/docc_preview.template.sh
 index 981af14..94fb06a 100644
 --- a/apple/internal/templates/docc_preview.template.sh
@@ -115,53 +401,52 @@ index faf6656..72d08ec 100644
  readonly BUNDLE_INFO_PLIST="${APP_DIR}/Contents/Info.plist"
 -readonly BUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
 +readonly BUNDLE_EXECUTABLE=$(PlistBuddy -c "Print :CFBundleExecutable" "${BUNDLE_INFO_PLIST}")
- 
+
  # Launch the app binary
  # Do *not* use exec here because we want the trap above to execute after the
 diff --git a/tools/environment_plist/environment_plist.sh b/tools/environment_plist/environment_plist.sh
-index 1dca56d..f52ec5b 100755
+index 1dca56d..1568a6d 100755
 --- a/tools/environment_plist/environment_plist.sh
 +++ b/tools/environment_plist/environment_plist.sh
-@@ -26,6 +26,16 @@
- 
+@@ -26,6 +26,15 @@
+
  set -eu
- 
-+# Resolve DEVELOPER_DIR via xcode-select if not already set.
+
 +if [[ -z "${DEVELOPER_DIR:-}" ]]; then
-+  DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)"
++  echo "environment_plist: DEVELOPER_DIR must be set" >&2
++  exit 1
 +fi
-+# When DEVELOPER_DIR is set, prepend the toolchain bin directory to PATH
-+# so that xcrun, PlistBuddy, plutil, sw_vers, etc. are found there.
-+if [[ -n "${DEVELOPER_DIR:-}" ]]; then
-+  export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
++if [[ "${DEVELOPER_DIR}" != /* ]]; then
++  DEVELOPER_DIR="$(cd "${DEVELOPER_DIR}" && pwd -P)"
 +fi
++export PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin:$PATH"
 +
  while [[ $# > 1 ]]
  do
  key="$1"
-@@ -47,7 +57,7 @@ shift
+@@ -47,7 +56,7 @@ shift
  done
- 
+
  set +e
 -PLATFORM_DIR=$(/usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
 +PLATFORM_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>/dev/null)
  XCRUN_EXITCODE=$?
  set -e
  if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
-@@ -55,31 +65,32 @@ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
+@@ -55,31 +64,32 @@ if [[ ${XCRUN_EXITCODE} -ne 0 ]] ; then
  and SDK version pair is not available."
    # Since this already failed, assume this is going to fail again. With
    # set -e, this will produce the appropriate stderr and error code.
 -  /usr/bin/xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
 +  xcrun --sdk "${PLATFORM}" --show-sdk-platform-path 2>&1
  fi
- 
+
  PLATFORM_PLIST="${PLATFORM_DIR}"/Info.plist
 +SDK_DIR=$(xcrun --sdk "${PLATFORM}" --show-sdk-path 2>/dev/null)
  TEMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/bazel_environment.XXXXXX")
  PLIST="${TEMPDIR}/env.plist"
  trap 'rm -rf "${TEMPDIR}"' ERR EXIT
- 
+
 -os_build=$(sw_vers -buildVersion)
 -compiler=$(/usr/libexec/PlistBuddy -c "Print :DefaultProperties:DEFAULT_COMPILER" "${PLATFORM_PLIST}")
 -xcodebuild_version_sdk_output=$(/usr/bin/xcrun xcodebuild -version -sdk "${PLATFORM}" 2>/dev/null)
@@ -191,16 +476,17 @@ index 1dca56d..f52ec5b 100755
  # Converts '7.1' -> 0710, and '7.1.1' -> 0711.
 -xcode_version=$(/usr/bin/printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
 +xcode_version=$(printf '%02d%d%d\n' $(echo "${xcode_version_string//./ }"))
- 
+
 -/usr/libexec/PlistBuddy \
 +PlistBuddy \
      -c "Add :DTPlatformBuild string ${platform_build:-""}" \
      -c "Add :DTSDKBuild string ${sdk_build:-""}" \
      -c "Add :DTPlatformVersion string ${platform_version:-""}" \
 diff --git a/tools/plisttool/plisttool.py b/tools/plisttool/plisttool.py
+index 5aa2f93..7fb9d64 100644
 --- a/tools/plisttool/plisttool.py
 +++ b/tools/plisttool/plisttool.py
-@@ -147,9 +147,27 @@ import copy
+@@ -147,11 +147,30 @@ import copy
  import datetime
  import json
  import plistlib
@@ -208,110 +494,59 @@ diff --git a/tools/plisttool/plisttool.py b/tools/plisttool/plisttool.py
  import re
  import subprocess
  import sys
- 
- 
+
+
 +def _ensure_toolchain_path():
-+  """Prepend toolchain bin to PATH using xcode-select if available."""
-+  try:
-+    result = subprocess.run(
-+      ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
-+    )
-+    if result.returncode == 0:
-+      dev_dir = result.stdout.strip()
-+      bin_dir = os.path.join(dev_dir, "Toolchains",
-+                             "XcodeDefault.xctoolchain", "usr", "bin")
-+      if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
-+        os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
-+  except Exception:
-+    pass
++  """Prepend the bundled Apple toolchain bin directory to PATH."""
++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
++  if not dev_dir:
++    return
++  if not os.path.isabs(dev_dir):
++    dev_dir = os.path.abspath(dev_dir)
++  dev_dir = os.path.realpath(dev_dir)
++  bin_dir = os.path.join(
++      dev_dir, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin"
++  )
++  path = os.environ.get("PATH", "")
++  path_entries = path.split(":") if path else []
++  if os.path.isdir(bin_dir) and bin_dir not in path_entries:
++    os.environ["PATH"] = ":".join([bin_dir] + path_entries)
 +
 +_ensure_toolchain_path()
 +
  # Format strings for errors that are raised, exposed here to the tests
+ # can validate against them.
+
 diff --git a/tools/wrapper_common/execute.py b/tools/wrapper_common/execute.py
+index 6dbfcf2..45f3481 100644
 --- a/tools/wrapper_common/execute.py
 +++ b/tools/wrapper_common/execute.py
-@@ -18,6 +18,24 @@ import os
- import re
+@@ -19,6 +19,25 @@ import re
  import subprocess
  import sys
- 
+
 +
 +def _ensure_toolchain_path():
-+  """Prepend toolchain bin to PATH using xcode-select if available."""
-+  try:
-+    result = subprocess.run(
-+      ["xcode-select", "-p"], capture_output=True, text=True, timeout=5
-+    )
-+    if result.returncode == 0:
-+      dev_dir = result.stdout.strip()
-+      bin_dir = os.path.join(dev_dir, "Toolchains",
-+                             "XcodeDefault.xctoolchain", "usr", "bin")
-+      if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
-+        os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
-+  except Exception:
-+    pass
++  """Prepend the bundled Apple toolchain bin directory to PATH."""
++  dev_dir = os.environ.get("DEVELOPER_DIR", "")
++  if not dev_dir:
++    return
++  if not os.path.isabs(dev_dir):
++    dev_dir = os.path.abspath(dev_dir)
++  dev_dir = os.path.realpath(dev_dir)
++  bin_dir = os.path.join(
++      dev_dir, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin"
++  )
++  path = os.environ.get("PATH", "")
++  path_entries = path.split(":") if path else []
++  if os.path.isdir(bin_dir) and bin_dir not in path_entries:
++    os.environ["PATH"] = ":".join([bin_dir] + path_entries)
 +
 +_ensure_toolchain_path()
 +
  # LINT.IfChange
  _DEFAULT_TIMEOUT = 900
-diff --git a/apple/BUILD b/apple/BUILD
---- a/apple/BUILD
-+++ b/apple/BUILD
-@@ -5,6 +5,19 @@
- package(default_visibility = ["//visibility:public"])
- 
- licenses(["notice"])
-+
-+# Extra SDK/toolchain files needed by rules_apple actions (environment_plist,
-+# plisttool, etc.) in sandboxed or remote execution.  Consumers set this via:
-+#   build --@build_bazel_rules_apple//apple:sdk_tool_files=@apple_cross_toolchain//:sdk_tool_files
-+label_flag(
-+    name = "sdk_tool_files",
-+    build_setting_default = ":_empty_sdk_tool_files",
-+)
-+
-+filegroup(
-+    name = "_empty_sdk_tool_files",
-+    srcs = [],
-+)
- 
- # Create a set of public config_settings that can be used in select()s.
- [
-diff --git a/apple/internal/apple_toolchains.bzl b/apple/internal/apple_toolchains.bzl
---- a/apple/internal/apple_toolchains.bzl
-+++ b/apple/internal/apple_toolchains.bzl
-@@ -119,6 +119,10 @@
- def _shared_attrs():
-     """Private attributes on every rule to provide access to bundling tools and other file deps."""
-     return {
-+        "_sdk_tool_files": attr.label(
-+            default = Label("//apple:sdk_tool_files"),
-+            allow_files = True,
-+        ),
-         "_mac_toolchain": attr.label(
-             default = Label("//apple/internal:mac_tools_toolchain"),
-             providers = [[AppleMacToolsToolchainInfo]],
-diff --git a/apple/internal/environment_plist.bzl b/apple/internal/environment_plist.bzl
---- a/apple/internal/environment_plist.bzl
-+++ b/apple/internal/environment_plist.bzl
-@@ -65,6 +65,7 @@
-     environment_plist_tool = ctx.attr._mac_toolchain[AppleMacToolsToolchainInfo].environment_plist_tool
-     platform = platform_prerequisites.platform
-     sdk_version = platform_prerequisites.sdk_version
-+    sdk_tool_files = ctx.files._sdk_tool_files
-     apple_support.run(
-         actions = ctx.actions,
-         apple_fragment = platform_prerequisites.apple_fragment,
-@@ -75,6 +76,7 @@
-             ctx.outputs.plist.path,
-         ],
-         executable = environment_plist_tool,
-+        inputs = sdk_tool_files,
-         outputs = [ctx.outputs.plist],
-         xcode_config = platform_prerequisites.xcode_version_config,
-     )
+
 diff --git a/tools/xctoolrunner/xctoolrunner.py b/tools/xctoolrunner/xctoolrunner.py
 index 43937d3..40b5cb6 100644
 --- a/tools/xctoolrunner/xctoolrunner.py
