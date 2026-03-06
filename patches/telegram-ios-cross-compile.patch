@@ -2258,7 +2258,7 @@ index 9040681907..eeaf891f83 100644
  
  headers = [
      "vp8.h",
-@@ -37,21 +39,16 @@ genrule(
+@@ -37,21 +39,17 @@ genrule(
      """
      set -ex
  
@@ -2286,10 +2286,11 @@ index 9040681907..eeaf891f83 100644
 +
 +    BUILD_ARCH="arm64"
 +    PLATFORM_HEADER_DIR="arm64-darwin-gcc"
++    CLANG_TARGET="arm64-apple-ios13.0"
  
      BUILD_DIR="$(RULEDIR)/build_$${BUILD_ARCH}"
      rm -rf "$$BUILD_DIR"
-@@ -76,7 +73,42 @@ genrule(
+@@ -76,7 +74,42 @@ genrule(
  
      mkdir -p "$$BUILD_DIR/Public/libvpx"
  
@@ -2318,8 +2319,8 @@ index 9040681907..eeaf891f83 100644
 +    python3 "$$BUILD_DIR/_patch_vpx.py" "$$BUILD_DIR/libvpx/build/make/configure.sh"
 +
 +    # Set cross-compilation tools
-+    export CC="$$(xcrun --find clang 2>/dev/null || echo clang)"
-+    export CXX="$$(xcrun --find clang++ 2>/dev/null || echo clang++)"
++    export CC="$$(xcrun --find clang 2>/dev/null || echo clang) --target=$$CLANG_TARGET"
++    export CXX="$$(xcrun --find clang++ 2>/dev/null || echo clang++) --target=$$CLANG_TARGET"
 +    export AR="$$(xcrun --find ar 2>/dev/null || echo ar)"
 +    export AS="$$(xcrun --find as 2>/dev/null || echo as)"
 +    export LD="$$(xcrun --find ld 2>/dev/null || echo ld)"
@@ -2333,7 +2334,7 @@ index 9040681907..eeaf891f83 100644
      """ +
      "\n".join([
          "cp -f \"$$BUILD_DIR/VPX.framework/Headers/vpx/{}\" \"$(location Public/vpx/{})\"".format(header, header) for header in headers
-@@ -91,6 +122,7 @@ genrule(
+@@ -91,6 +124,7 @@ genrule(
      ["Public/vpx/lib{}.a".format(x) for x in libs],
      tools = [
          "//third-party/yasm:yasm.tar",
