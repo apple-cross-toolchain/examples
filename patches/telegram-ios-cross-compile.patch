@@ -2580,17 +2580,30 @@ index bb79c9efc6..588f5d41a4 100755
  ARCH="$1"
  BUILD_DIR=$(echo "$(cd "$(dirname "$2")"; pwd -P)/$(basename "$2")")
  SOURCE_CODE_ARCHIVE="$3"
-@@ -56,17 +65,23 @@ elif [ "${ARCH}" == "sim_arm64" ]; then
+@@ -48,26 +59,35 @@
+   exit 0
+ elif [ "${ARCH}" == "x86_64" ]; then
+   PLATFORM="iphonesimulator"
+-  EXTRA_CFLAGS="-arch ${ARCH}"
++  TARGET_TRIPLE="x86_64-apple-ios$MINIOSVERSION-simulator"
++  MIN_VERSION_FLAG="-mios-simulator-version-min=${MINIOSVERSION}"
+   EXTRA_CONFIG="--host=x86_64-apple-darwin"
+ elif [ "${ARCH}" == "sim_arm64" ]; then
+   PLATFORM="iphonesimulator"
+-  EXTRA_CFLAGS="-arch arm64 --target=arm64-apple-ios$MINIOSVERSION-simulator"
++  TARGET_TRIPLE="arm64-apple-ios$MINIOSVERSION-simulator"
++  MIN_VERSION_FLAG="-mios-simulator-version-min=${MINIOSVERSION}"
    EXTRA_CONFIG="--host=arm-apple-darwin20"
  else
    PLATFORM="iphoneos"
 -  EXTRA_CFLAGS="-arch ${ARCH}"
-+  EXTRA_CFLAGS="--target=arm64-apple-ios$MINIOSVERSION"
++  TARGET_TRIPLE="arm64-apple-ios$MINIOSVERSION"
++  MIN_VERSION_FLAG="-miphoneos-version-min=${MINIOSVERSION}"
    EXTRA_CONFIG="--host=arm-apple-darwin"
  fi
  
  SDK_PATH="$(xcrun --sdk $PLATFORM --show-sdk-path 2>/dev/null)"
-+CC="$(xcrun --find clang 2>/dev/null || echo clang)"
++CC="$(xcrun --find clang 2>/dev/null || echo clang) --target=${TARGET_TRIPLE}"
 +AR="$(xcrun --find ar 2>/dev/null || echo ar)"
 +RANLIB="$(xcrun --find ranlib 2>/dev/null || echo ranlib)"
  
@@ -2599,13 +2612,14 @@ index bb79c9efc6..588f5d41a4 100755
  ./configure --disable-shared --enable-static --with-pic --disable-extra-programs --disable-doc --disable-asm --enable-intrinsics ${EXTRA_CONFIG} \
    --prefix="${INTERDIR}" \
 -  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -L${OUTPUTDIR}/lib" \
+-  CFLAGS="$CFLAGS ${EXTRA_CFLAGS} ${OPT_CFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -I${OUTPUTDIR}/include -isysroot ${SDK_PATH}" \
 +  CC="$CC" \
 +  AR="$AR" \
 +  RANLIB="$RANLIB" \
-+  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -L${OUTPUTDIR}/lib -isysroot ${SDK_PATH}" \
-   CFLAGS="$CFLAGS ${EXTRA_CFLAGS} ${OPT_CFLAGS} -fPIE -miphoneos-version-min=${MINIOSVERSION} -I${OUTPUTDIR}/include -isysroot ${SDK_PATH}" \
++  LDFLAGS="$LDFLAGS ${OPT_LDFLAGS} -fPIE ${MIN_VERSION_FLAG} -L${OUTPUTDIR}/lib -isysroot ${SDK_PATH}" \
++  CFLAGS="$CFLAGS ${OPT_CFLAGS} -fPIE ${MIN_VERSION_FLAG} -I${OUTPUTDIR}/include -isysroot ${SDK_PATH}" \
  
- make -j
+  make -j
 diff --git a/third-party/opusfile/BUILD b/third-party/opusfile/BUILD
 index 0e62d353df..a8b0434ba8 100644
 --- a/third-party/opusfile/BUILD
