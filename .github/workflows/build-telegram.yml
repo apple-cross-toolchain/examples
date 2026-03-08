@@ -10,6 +10,9 @@ jobs:
   build_telegram:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,10 +38,18 @@ jobs:
           cd Telegram-iOS
           sed -i 's|SDKS_URL|${{ secrets.SDKS_URL }}|g' MODULE.bazel
 
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
       - name: Build Telegram
         run: |
           cd Telegram-iOS
-          bazel build //Telegram:Telegram
+          bazel build //Telegram:Telegram \
+            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
+            --google_default_credentials \
+            --remote_upload_local_results=true
 
       - uses: actions/upload-artifact@v4
         with:
