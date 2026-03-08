@@ -4,7 +4,7 @@ bazel_dep(name = "rules_applecross", version = "0.0.3")
 git_override(
     module_name = "rules_applecross",
     remote = "https://github.com/apple-cross-toolchain/rules_applecross.git",
-    commit = "80473d5fc05c11d2396095e0faa9ab9a93b820f1",
+    commit = "9ed1382e6f549ad3a933281a427f7b132b6ef880",
 )
 bazel_dep(name = "rules_apple", version = "4.3.3", repo_name = "build_bazel_rules_apple")
 git_override(
