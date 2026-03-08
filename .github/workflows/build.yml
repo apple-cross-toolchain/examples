@@ -35,4 +35,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: MBProgressHUDFramework
-          path: bazel-bin/external/MBProgressHUD/MBProgressHUDFramework.zip
+          path: bazel-bin/external/+http_archive+MBProgressHUD/MBProgressHUDFramework.zip
