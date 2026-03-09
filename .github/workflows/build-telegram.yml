@@ -46,7 +46,7 @@ jobs:
       - name: Build Telegram
         run: |
           cd Telegram-iOS
-          bazel --host_jvm_args=-Xmx1g build //Telegram:Telegram \
+          bazel --host_jvm_args=-Xmx4g build //Telegram:Telegram \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
             --google_default_credentials \
             --remote_upload_local_results=true \
