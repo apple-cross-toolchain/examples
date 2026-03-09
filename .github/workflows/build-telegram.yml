@@ -46,10 +46,12 @@ jobs:
       - name: Build Telegram
         run: |
           cd Telegram-iOS
-          bazel build //Telegram:Telegram \
+          bazel --host_jvm_args=-Xmx1g build //Telegram:Telegram \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
             --google_default_credentials \
-            --remote_upload_local_results=true
+            --remote_upload_local_results=true \
+            --local_ram_resources=HOST_RAM*.67 \
+            --jobs=3
 
       - uses: actions/upload-artifact@v4
         with:
