@@ -50,7 +50,6 @@ jobs:
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
             --google_default_credentials \
             --remote_upload_local_results=true \
-            --local_ram_resources=HOST_RAM*.67 \
             --jobs=3
 
       - uses: actions/upload-artifact@v4
