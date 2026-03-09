@@ -17,6 +17,12 @@ git_override(
 bazel_dep(name = "apple_support", version = "2.3.0", repo_name = "build_bazel_apple_support")
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "llvm", version = "0.6.1")
+bazel_dep(name = "xctestrunner", version = "0.0.1")
+git_override(
+    module_name = "xctestrunner",
+    remote = "https://github.com/apple-cross-toolchain/xctestrunner-bash.git",
+    commit = "9548d93f29a2a93315d7a0458622682c0f76e6fe",
+)
 
 apple_cross_toolchain = use_extension(
     "@rules_applecross//toolchain:extensions.bzl",
