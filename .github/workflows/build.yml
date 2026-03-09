@@ -32,6 +32,7 @@ jobs:
           --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }}
           --google_default_credentials
           --remote_upload_local_results=true
+          --remote_download_toplevel
       - uses: actions/upload-artifact@v4
         with:
           name: MBProgressHUDFramework
