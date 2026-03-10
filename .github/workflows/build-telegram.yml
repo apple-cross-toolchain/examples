@@ -48,6 +48,7 @@ jobs:
           cd Telegram-iOS
           bazel --host_jvm_args=-Xmx12g --host_jvm_args=-Xms12g build //Telegram:Telegram \
             --ios_multi_cpus=sim_arm64 \
+            --swiftcopt=-whole-module-optimization \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
             --google_default_credentials \
             --remote_upload_local_results=true \
