@@ -43,7 +43,7 @@ index 1ce9174344..3b510730ed 100644
  build --features=swift.debug_prefix_map
  build --features=swift.enable_vfsoverlays
 +build --features=disable_legacy_signing
-+build --swiftcopt=-whole-module-optimization
++build --@build_bazel_rules_swift//swift:copt=-whole-module-optimization
  build:dbg --features=swift.emit_swiftsourceinfo
  
  build --strategy=Genrule=standalone
