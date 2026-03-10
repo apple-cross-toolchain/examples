@@ -19,7 +19,7 @@ index 1ce9174344..3b510730ed 100644
 +build --define=buildNumber=100000
  
 +build --apple_platform_type=ios
-+build --ios_multi_cpus=arm64
++build --ios_multi_cpus=sim_arm64
 +
 +common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
 +common --repo_env=BAZEL_DO_NOT_DETECT_SWIFT_TOOLCHAIN=1
