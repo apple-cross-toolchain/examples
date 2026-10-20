@@ -6,56 +6,89 @@ on:
     branches:
       - main
 
+env:
+  TELEGRAM_BRANCH: rules_applecross
+  XCODE_DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
 jobs:
+  package_sdks:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Find the rules_applecross commit Telegram pins
+        id: applecross
+        run: |
+          commit=$(
+            curl -fsSL "https://raw.githubusercontent.com/apple-cross-toolchain/Telegram-iOS/$TELEGRAM_BRANCH/MODULE.bazel" |
+              sed -n '/module_name = "rules_applecross"/,/)/s/.*commit = "\([0-9a-f]*\)".*/\1/p'
+          )
+          test -n "$commit"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: apple-cross-toolchain/rules_applecross
+          ref: ${{ steps.applecross.outputs.commit }}
+      - name: Read Xcode identity
+        id: xcode
+        env:
+          DEVELOPER_DIR: ${{ env.XCODE_DEVELOPER_DIR }}
+        run: |
+          identity=$(xcodebuild -version)
+          echo "identity=${identity//$'\n'/-}" >> "$GITHUB_OUTPUT"
+      - name: Cache packaged Apple SDKs
+        id: apple-sdks-cache
+        uses: actions/cache@v6
+        with:
+          path: apple-sdks.tar.zst
+          key: apple-sdks-${{ steps.xcode.outputs.identity }}-${{ hashFiles('tools/package-sdks.sh') }}
+      - name: Package Apple SDKs
+        if: steps.apple-sdks-cache.outputs.cache-hit != 'true'
+        env:
+          DEVELOPER_DIR: ${{ env.XCODE_DEVELOPER_DIR }}
+        run: tools/package-sdks.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apple-sdks
+          path: apple-sdks.tar.zst
+          compression-level: 0
+          retention-days: 1
+
   build_telegram:
+    needs: package_sdks
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
       contents: read
-      id-token: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: examples
-
       - name: Clone Telegram-iOS
         run: |
           git clone --depth 1 --recursive --shallow-submodules \
-            -b rules_applecross \
+            -b "$TELEGRAM_BRANCH" \
             https://github.com/apple-cross-toolchain/Telegram-iOS.git
-
-      - name: Prepare build environment
-        run: |
-          sudo apt-get update && sudo apt-get install -y gperf
-
-          cat > ~/.netrc <<EOF
-          machine api.github.com
-          login ${{ secrets.SDKS_USER }}
-          password ${{ secrets.SDKS_PASSWORD }}
-          EOF
-          chmod 600 ~/.netrc
-
-          cd Telegram-iOS
-          sed -i 's|SDKS_URL|${{ secrets.SDKS_URL }}|g' MODULE.bazel
-
-      - uses: google-github-actions/auth@v2
+      - uses: actions/download-artifact@v8
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Build Telegram
-        run: |
-          cd Telegram-iOS
-          bazel --host_jvm_args=-Xmx12g --host_jvm_args=-Xms12g build //Telegram:Telegram \
-            --ios_multi_cpus=sim_arm64 \
-            --@build_bazel_rules_swift//swift:copt=-whole-module-optimization \
-            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE }} \
-            --google_default_credentials \
-            --remote_upload_local_results=true \
-            --remote_download_toplevel \
-            --jobs=3
-
-      - uses: actions/upload-artifact@v4
+          name: apple-sdks
+          path: apple-sdks-artifact
+          skip-decompress: true
+      - name: Extract Apple SDKs
+        run: unzip -q apple-sdks-artifact/* -d Telegram-iOS && rm -rf apple-sdks-artifact
+      - name: Build Telegram with remote execution
+        working-directory: Telegram-iOS
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: >-
+          bazel
+          --host_jvm_args=-Xmx10g
+          build
+          --config=remote
+          --remote_header=x-buildbuddy-api-key="$BUILDBUDDY_API_KEY"
+          --ios_multi_cpus=sim_arm64
+          --//Telegram:disableProvisioningProfiles
+          --//Telegram:disableStripping
+          --@build_bazel_rules_swift//swift:copt=-whole-module-optimization
+          //Telegram:Telegram
+      - uses: actions/upload-artifact@v7
         with:
           name: Telegram.ipa
           path: Telegram-iOS/bazel-bin/Telegram/Telegram.ipa
