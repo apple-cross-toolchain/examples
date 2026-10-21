@@ -16,19 +16,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Find the rules_applecross commit Telegram pins
-        id: applecross
-        run: |
-          commit=$(
-            curl -fsSL "https://raw.githubusercontent.com/apple-cross-toolchain/Telegram-iOS/$TELEGRAM_BRANCH/MODULE.bazel" |
-              sed -n '/module_name = "rules_applecross"/,/)/s/.*commit = "\([0-9a-f]*\)".*/\1/p'
-          )
-          test -n "$commit"
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
           repository: apple-cross-toolchain/rules_applecross
-          ref: ${{ steps.applecross.outputs.commit }}
       - name: Read Xcode identity
         id: xcode
         env:
