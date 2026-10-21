@@ -81,3 +81,26 @@ jobs:
         with:
           name: Telegram.ipa
           path: Telegram-iOS/bazel-bin/Telegram/Telegram.ipa
+
+  delete_sdks:
+    if: >-
+      always() &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    needs: build_telegram
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Delete Apple SDKs artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=apple-sdks" \
+              --jq '.artifacts[].id'
+          )
+          for id in $ids; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+          done
